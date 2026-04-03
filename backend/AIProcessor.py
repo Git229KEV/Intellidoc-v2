@@ -164,12 +164,14 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
     
     # Determine provider priority based on file type
     # For images, ONLY use vision-capable providers (Groq and Gemini)
-    # OpenRouter and HuggingFace cannot process images and will return sample data
+    # OpenRouter included as fallback for Gemini high-load periods (503 errors)
+    # OpenRouter and HuggingFace cannot process images properly without text
     
     if is_image:
         providers = [
             ("Groq", _try_groq),
             ("Gemini", _try_gemini),
+            ("OpenRouter", _try_openrouter),  # Fallback if Gemini has 503 errors
         ]
     else:
         providers = [
@@ -245,7 +247,8 @@ def _try_gemini(file_bytes, file_type, extracted_text, prompt):
         contents = [f"Document Text:\n\n{extracted_text}\n\n{prompt}"]
     
     try:
-        # Set timeout for Gemini in serverless environment (minimum 10s required)
+        # Increased timeout for Gemini (experiencing high load periods, 503 errors)
+        # Minimum is 10s, using 15s to handle demand spikes
         print("DEBUG: Sending request to Gemini...")
         response = client.models.generate_content(
             model='gemini-2.5-flash',
@@ -254,7 +257,7 @@ def _try_gemini(file_bytes, file_type, extracted_text, prompt):
                 response_mime_type="application/json",
                 response_schema=AnalysisSchema,
                 temperature=0.1,
-                http_options={'timeout': 10000} # Minimum 10 seconds required
+                http_options={'timeout': 15000} # 15 seconds - handle high demand
             ),
         )
         result = response.text
@@ -263,7 +266,11 @@ def _try_gemini(file_bytes, file_type, extracted_text, prompt):
         # but we handle it via the main loop's cleaning just in case.
         return result
     except Exception as e:
-        print(f"DEBUG: Gemini error: {str(e)}")
+        error_str = str(e)
+        if '503' in error_str or 'UNAVAILABLE' in error_str:
+            print(f"DEBUG: Gemini experiencing high load (503): {error_str}")
+        else:
+            print(f"DEBUG: Gemini error: {error_str}")
         raise
 
 def _try_groq(file_bytes, file_type, extracted_text, prompt):
@@ -304,14 +311,14 @@ def _try_groq(file_bytes, file_type, extracted_text, prompt):
         messages = [{"role": "user", "content": content}]
     
     try:
-        # Using a shorter timeout for Groq
+        # Using current active Groq vision model (llama-3.2 vision models were deprecated 4/14/25)
         print("DEBUG: Sending request to Groq...")
         response = client.chat.completions.create(
-            model="llama-3.2-11b-vision-preview",
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
             messages=messages,
             response_format={"type": "json_object"},
             temperature=0.1,
-            timeout=10.0  # Increased timeout for image processing
+            timeout=10.0  # Timeout for image processing
         )
         result = response.choices[0].message.content
         print("DEBUG: Groq response received successfully")
@@ -322,20 +329,53 @@ def _try_groq(file_bytes, file_type, extracted_text, prompt):
 
 def _try_openrouter(file_bytes, file_type, extracted_text, prompt):
     api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key: return None
+    if not api_key:
+        print("DEBUG: OPENROUTER_API_KEY not set")
+        return None
     
-    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
-    content = f"Document Text:\n\n{extracted_text}\n\n{prompt}"
-    
-    # Using a shorter timeout for OpenRouter
-    response = client.chat.completions.create(
-        model="meta-llama/llama-3.1-8b-instruct",
-        messages=[{"role": "user", "content": content}],
-        response_format={"type": "json_object"},
-        temperature=0.1,
-        timeout=5.0
-    )
-    return response.choices[0].message.content
+    try:
+        client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+        file_type = file_type.lower().strip()
+        
+        messages = []
+        # Try vision support for OpenRouter as fallback
+        if file_type in ['png', 'webp', 'jpg', 'jpeg', 'image']:
+            print("DEBUG: OpenRouter processing image as fallback...")
+            base64_image = base64.b64encode(file_bytes).decode('utf-8')
+            mime_url = "image/jpeg"
+            if file_type == 'png': mime_url = "image/png"
+            
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mime_url};base64,{base64_image}"}
+                        }
+                    ]
+                }
+            ]
+        else:
+            content = f"Document Text:\n\n{extracted_text}\n\n{prompt}"
+            messages = [{"role": "user", "content": content}]
+        
+        print("DEBUG: Sending request to OpenRouter...")
+        # Using a longer timeout for OpenRouter
+        response = client.chat.completions.create(
+            model="meta-llama/llama-3.1-8b-instruct",
+            messages=messages,
+            response_format={"type": "json_object"},
+            temperature=0.1,
+            timeout=8.0
+        )
+        result = response.choices[0].message.content
+        print("DEBUG: OpenRouter response received successfully")
+        return result
+    except Exception as e:
+        print(f"DEBUG: OpenRouter error: {str(e)}")
+        raise
 
 def _try_huggingface(file_bytes, file_type, extracted_text, prompt):
     api_key = os.getenv("HUGGINGFACE_API_KEY")
