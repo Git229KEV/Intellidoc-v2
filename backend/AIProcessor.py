@@ -131,6 +131,7 @@ def _try_gemini(file_bytes, file_type, extracted_text, prompt):
     else:
         contents = [f"Document Text:\n\n{extracted_text}\n\n{prompt}"]
     
+    # Set a strict 7s timeout for Gemini in serverless environment
     response = client.models.generate_content(
         model='gemini-2.5-flash',
         contents=contents,
@@ -138,6 +139,7 @@ def _try_gemini(file_bytes, file_type, extracted_text, prompt):
             response_mime_type="application/json",
             response_schema=AnalysisSchema,
             temperature=0.1,
+            http_options={'timeout': 7000} # 7 seconds
         ),
     )
     # The new SDK response.text is already clean JSON if response_schema is used,
@@ -171,11 +173,13 @@ def _try_groq(file_bytes, file_type, extracted_text, prompt):
         content = f"Document Text:\n\n{extracted_text}\n\n{prompt}"
         messages = [{"role": "user", "content": content}]
     
+    # Using a shorter timeout for Groq
     response = client.chat.completions.create(
         model="llama-3.2-11b-vision-preview",
         messages=messages,
         response_format={"type": "json_object"},
-        temperature=0.1
+        temperature=0.1,
+        timeout=5.0
     )
     return response.choices[0].message.content
 
@@ -186,11 +190,13 @@ def _try_openrouter(file_bytes, file_type, extracted_text, prompt):
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     content = f"Document Text:\n\n{extracted_text}\n\n{prompt}"
     
+    # Using a shorter timeout for OpenRouter
     response = client.chat.completions.create(
         model="meta-llama/llama-3.1-8b-instruct",
         messages=[{"role": "user", "content": content}],
         response_format={"type": "json_object"},
-        temperature=0.1
+        temperature=0.1,
+        timeout=5.0
     )
     return response.choices[0].message.content
 
@@ -206,7 +212,8 @@ def _try_huggingface(file_bytes, file_type, extracted_text, prompt):
         "parameters": {"return_full_text": False, "max_new_tokens": 1000}
     }
     
-    response = requests.post(API_URL, headers=headers, json=payload)
+    # Crucial timeout for requests
+    response = requests.post(API_URL, headers=headers, json=payload, timeout=5.0)
     if response.status_code != 200:
         raise Exception(f"HF Error Status {response.status_code}")
     

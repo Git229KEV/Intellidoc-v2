@@ -109,8 +109,15 @@ async def analyze_document(request: DocumentRequest, api_key: str = Depends(veri
             error_details=f"System Crash: {str(e)}"
         )
 
-from mangum import Mangum
-handler = Mangum(app)
+# Health check for Vercel deployment status
+@app.get("/api/health")
+def health_check():
+    import sys
+    return {
+        "status": "healthy",
+        "python_version": sys.version,
+        "active_providers": ["Gemini", "Groq", "OpenRouter", "HuggingFace"]
+    }
 
 @app.get("/")
 def read_root():

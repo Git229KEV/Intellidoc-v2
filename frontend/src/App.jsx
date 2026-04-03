@@ -96,9 +96,9 @@ function App() {
       'image/jpeg', 'image/png', 'image/webp'
     ];
     
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 4 * 1024 * 1024; // 4MB for Vercel
     if (selectedFile.size > maxSize) {
-      setError('Neural data too heavy. Maximum allowed size is 10MB.');
+      setError('Neural data too heavy. Maximum allowed size is 4MB for cloud sync.');
       return;
     }
     
@@ -282,7 +282,7 @@ function App() {
                   <h2 className="action-text">{dragActive ? "Inject Data" : "Initialize Source"}</h2>
                   <p className="supported-formats-label">
                     Supported file formats .docx, .pdf, .jpg/.png <br/>
-                    Max file upload size 10mb
+                    Max file upload size 4mb
                   </p>
                 </div>
                 <input 
