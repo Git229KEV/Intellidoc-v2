@@ -391,7 +391,7 @@ function App() {
                     </div>
                   </div>
                 </div>
-              )
+              )}
 
               {result && !loading && (
                 <div className="nebula-results">
