@@ -1,10 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "backend/main.py": {
-      "runtime": "@vercel/python"
-    }
-  },
   "builds": [
     {
       "src": "frontend/package.json",

@@ -1,4 +1,5 @@
 import os
+import sys
 import base64
 from fastapi import FastAPI, HTTPException, Security, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,8 +7,8 @@ from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-from DocumentParser import parse_document
-from AIProcessor import generate_analysis
+# Ensure the current directory is in the path for local imports on Vercel
+sys.path.append(os.path.dirname(__file__))
 
 # Load environment variables
 load_dotenv()
@@ -68,6 +69,13 @@ class DocumentResponse(BaseModel):
 @app.post("/api/document-analyze", response_model=DocumentResponse)
 async def analyze_document(request: DocumentRequest, api_key: str = Depends(verify_api_key)):
     try:
+        # Lazy imports to prevent top-level invocation failures on Vercel
+        try:
+            from DocumentParser import parse_document
+            from AIProcessor import generate_analysis
+        except ImportError as ie:
+            raise HTTPException(status_code=500, detail=f"Module Import Error: {str(ie)}")
+
         # Decode the file once
         try:
             file_bytes = base64.b64decode(request.fileBase64)
