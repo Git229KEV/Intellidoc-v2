@@ -18,6 +18,10 @@ class EntitiesSchema(BaseModel):
 
 class AnalysisSchema(BaseModel):
     summary: str = Field(default="", description="A concise and accurate summary of the document content (max 2 sentences)")
+    full_text: str = Field(
+        default="",
+        description="Complete verbatim transcription of ALL visible text from the document (required for images; use OCR text below if provided)",
+    )
     entities: EntitiesSchema = Field(default_factory=EntitiesSchema)
     sentiment: str = Field(default="Neutral", description="The overall sentiment of the content. Must be Positive, Negative, or Neutral")
     confidence_score: float = Field(default=0.0, description="Confidence score for the extraction (0.0 to 1.0)")
@@ -54,26 +58,20 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
     """
     
     prompt = """
-    CRITICAL: You are an expert document OCR and Analysis agent. 
-    Analyze the provided document image or text with 100% precision.
-    
-    1. EXTRACR ALL: Names, Dates, Organizations, Monetary Amounts.
-    2. UNIQUE IDENTIFIERS: Extract EVERY ID, Invoice Number, Receipt ID, etc.
-    3. LOCATIONS & CONTACTS: Extract full addresses, phone numbers, and emails.
-    4. SENTIMENT: Determine if the document tone is Positive, Negative, or Neutral.
-    5. SUMMARY: 1-2 sentence high-level synthesis of what this document is.
+    CRITICAL: You are an expert document OCR and Analysis agent.
+    Analyze the provided document image or text with maximum precision.
 
-    IMPORTANT: If this is an IMAGE, perform deep visual OCR first. 
-    You MUST return the result in STRICT JSON format matching this schema:
-    {
-      "summary": "...",
-      "entities": {
-        "names": [], "dates": [], "organizations": [], "amounts": [],
-        "unique_identifiers": [], "locations": [], "contact_details": []
-      },
-      "sentiment": "...",
-      "confidence_score": 0.95
-    }
+    1. full_text: For ANY image or scanned document, transcribe EVERY line of visible text into "full_text"
+       (plain text, preserve reading order: top-to-bottom, left column then right if applicable).
+       Do NOT invent text. If OCR text is provided below, merge/correct it against what you see.
+       For non-image text-only documents, you may echo the supplied text or a cleaned version.
+    2. EXTRACT ALL entities: Names, Dates, Organizations, Monetary Amounts.
+    3. UNIQUE IDENTIFIERS: IDs, invoice numbers, receipt numbers, etc.
+    4. LOCATIONS & CONTACTS: Addresses, phone numbers, emails, websites.
+    5. SENTIMENT: Positive, Negative, or Neutral (document tone).
+    6. SUMMARY: Exactly 1-2 sentences describing what the document IS (not the full text).
+
+    You MUST return STRICT JSON matching the schema (including "full_text" and "summary").
     """
 
     # Determine provider priority based on file type
@@ -95,10 +93,17 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
         ]
 
     errors = []
+    context_prompt = prompt
+    if extracted_text and extracted_text.strip():
+        context_prompt = (
+            f"Locally extracted text (may have OCR errors; reconcile with the image if present):\n\n"
+            f"{extracted_text.strip()}\n\n---\n\n{prompt}"
+        )
+
     for name, func in providers:
         try:
             print(f"DEBUG: Attempting analysis with {name}...")
-            raw_result = func(file_bytes, file_type, extracted_text, prompt)
+            raw_result = func(file_bytes, file_type, extracted_text, context_prompt)
             
             if raw_result:
                 # Some funcs return strings, some return dicts. Normalize to strings for cleaning.
@@ -119,6 +124,7 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
 
     return {
         "summary": "All AI providers failed to process this document.",
+        "full_text": extracted_text.strip() if extracted_text else "",
         "entities": {
             "names": [], "dates": [], "organizations": [], "amounts": [],
             "unique_identifiers": [], "locations": [], "contact_details": []
@@ -155,7 +161,7 @@ def _try_gemini(file_bytes, file_type, extracted_text, prompt):
             response_mime_type="application/json",
             response_schema=AnalysisSchema,
             temperature=0.1,
-            http_options={'timeout': 7000} # 7 seconds
+            http_options={'timeout': 45000}  # ms; vision + JSON can be slow
         ),
     )
     # The new SDK response.text is already clean JSON if response_schema is used,
@@ -199,7 +205,7 @@ def _try_groq(file_bytes, file_type, extracted_text, prompt):
         messages=messages,
         response_format={"type": "json_object"},
         temperature=0.1,
-        timeout=5.0
+        timeout=45.0,
     )
     return response.choices[0].message.content
 
@@ -208,15 +214,39 @@ def _try_openrouter(file_bytes, file_type, extracted_text, prompt):
     if not api_key: return None
     
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
-    content = f"Document Text:\n\n{extracted_text}\n\n{prompt}"
-    
-    # Using a shorter timeout for OpenRouter
+    file_type = file_type.lower().strip()
+
+    if file_type in ['png', 'webp', 'jpg', 'jpeg', 'image']:
+        base64_image = base64.b64encode(file_bytes).decode('utf-8')
+        mime_url = "image/jpeg"
+        if file_type == 'png':
+            mime_url = "image/png"
+        elif file_type == 'webp':
+            mime_url = "image/webp"
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{mime_url};base64,{base64_image}"},
+                    },
+                ],
+            }
+        ]
+        model = "openai/gpt-4o-mini"
+    else:
+        content = f"Document Text:\n\n{extracted_text}\n\n{prompt}"
+        messages = [{"role": "user", "content": content}]
+        model = "meta-llama/llama-3.1-8b-instruct"
+
     response = client.chat.completions.create(
-        model="meta-llama/llama-3.1-8b-instruct",
-        messages=[{"role": "user", "content": content}],
+        model=model,
+        messages=messages,
         response_format={"type": "json_object"},
         temperature=0.1,
-        timeout=5.0
+        timeout=30.0,
     )
     return response.choices[0].message.content
 

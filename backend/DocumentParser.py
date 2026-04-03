@@ -97,9 +97,23 @@ def extract_text_from_image(file_bytes: bytes) -> str:
     """
     try:
         image = Image.open(io.BytesIO(file_bytes))
+        if image.mode not in ("RGB", "L"):
+            image = image.convert("RGB")
         # Use Tesseract if it was detected earlier
         if tesseract_path:
-            text = pytesseract.image_to_string(image)
+            # PSM 6: assume a single uniform block of text (typical for resumes/posters)
+            text = pytesseract.image_to_string(
+                image,
+                config="--oem 3 --psm 6",
+            )
+            if len(text.strip()) < 40:
+                # PSM 3: fully automatic page segmentation (better for multi-column layouts)
+                alt = pytesseract.image_to_string(
+                    image,
+                    config="--oem 3 --psm 3",
+                )
+                if len(alt.strip()) > len(text.strip()):
+                    text = alt
             return text
         else:
             print("DEBUG: Skipping local OCR (No Tesseract).")

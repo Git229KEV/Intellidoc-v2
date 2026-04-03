@@ -61,10 +61,21 @@ class DocumentResponse(BaseModel):
     status: str
     fileName: str
     summary: str
+    extracted_text: str = Field(
+        default="",
+        description="Full OCR / transcription text (primary content for images)",
+    )
     entities: EntitiesResponse
     sentiment: str
     confidence_score: float = Field(..., description="Neural synthesis confidence")
     error_details: str = Field(default="", description="Detailed error logs for fallback debugging")
+
+
+def _merge_extracted_text(parsed_local: str, analysis: dict) -> str:
+    ai_text = (analysis.get("full_text") or "").strip()
+    if ai_text:
+        return ai_text
+    return (parsed_local or "").strip()
 
 @app.post("/api/document-analyze", response_model=DocumentResponse)
 async def analyze_document(request: DocumentRequest, api_key: str = Depends(verify_api_key)):
@@ -82,7 +93,7 @@ async def analyze_document(request: DocumentRequest, api_key: str = Depends(veri
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid Base64 string")
 
-        # Extract text locally for all file types to ensure fallback providers
+        # Extract text locally for all file types (Tesseract OCR for images when available)
         extracted_text = parse_document(request.fileBase64, request.fileType)
         
         # Call LLM API with diagnostic feedback
@@ -91,11 +102,13 @@ async def analyze_document(request: DocumentRequest, api_key: str = Depends(veri
         # Assemble Response
         # if generate_analysis returns a status error (fallback failed), we handle it via DocumentResponse
         is_success = "error_details" not in analysis_result or not analysis_result["error_details"]
+        merged_body = _merge_extracted_text(extracted_text, analysis_result)
         
         return DocumentResponse(
             status="success" if is_success else "error",
             fileName=request.fileName,
             summary=analysis_result.get("summary", "Analysis failed."),
+            extracted_text=merged_body,
             entities=EntitiesResponse(**analysis_result.get("entities", {})),
             sentiment=analysis_result.get("sentiment", "Neutral"),
             confidence_score=float(analysis_result.get("confidence_score", 0.0)),
@@ -107,10 +120,17 @@ async def analyze_document(request: DocumentRequest, api_key: str = Depends(veri
         error_trace = traceback.format_exc()
         print(f"CRITICAL SYSTEM ERROR: {error_trace}")
         
+        merged = ""
+        try:
+            from DocumentParser import parse_document
+            merged = parse_document(request.fileBase64, request.fileType) or ""
+        except Exception:
+            pass
         return DocumentResponse(
             status="error",
             fileName=request.fileName,
             summary="A critical system error occurred during analysis.",
+            extracted_text=merged,
             entities=EntitiesResponse(),
             sentiment="Neutral",
             confidence_score=0.0,
