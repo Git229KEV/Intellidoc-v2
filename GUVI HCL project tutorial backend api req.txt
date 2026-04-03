@@ -1,0 +1,10 @@
+GUVI HCL project :(paste this in cmd):
+
+curl -X POST https://intelli-doc-nine.vercel.app/api/document-analyze ^
+  -H "Content-Type: application/json" ^
+  -H "x-api-key: sk_track2_987654321" ^
+  -d "{\"fileName\":\"sample1.pdf\",\"fileType\":\"pdf\",\"fileBase64\":\"JVBERi0xLjQK...\"}"
+
+
+API endpoint url : https://intelli-doc-nine.vercel.app/api/document-analyze
+x_api_key: sk_track2_987654321
