@@ -15,7 +15,10 @@ def find_tesseract_cmd():
         r"C:\Program Files\Tesseract-OCR\tesseract.exe",
         r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
         os.path.join(os.environ.get("LOCALAPPDATA", ""), "Tesseract-OCR", "tesseract.exe"),
-        "tesseract.exe"  # Fallback to system PATH
+        "/usr/bin/tesseract",
+        "/usr/local/bin/tesseract",
+        "tesseract",
+        "tesseract.exe"
     ]
     
     for path in possible_paths:

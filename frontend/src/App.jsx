@@ -149,7 +149,9 @@ function App() {
         // For images, prioritize extension for backend MIME detection
         const ext = fileName.split('.').pop();
         if (['png', 'webp', 'jpg', 'jpeg'].includes(ext)) {
-          fileTypeStr = ext;
+          fileTypeStr = ext === 'jpg' ? 'jpeg' : ext;
+        } else {
+          fileTypeStr = 'image';
         }
       }
 

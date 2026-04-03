@@ -121,7 +121,8 @@ def _try_gemini(file_bytes, file_type, extracted_text, prompt):
     file_type = file_type.lower().strip()
     
     contents = []
-    if file_type == 'image' or file_type in ['png', 'webp', 'jpg', 'jpeg']:
+    if file_type in ['png', 'webp', 'jpg', 'jpeg', 'image']:
+        # Ensure common image formats are consistent
         mime = "image/jpeg"
         if file_type == 'png': mime = "image/png"
         elif file_type == 'webp': mime = "image/webp"
@@ -154,9 +155,13 @@ def _try_groq(file_bytes, file_type, extracted_text, prompt):
     file_type = file_type.lower().strip()
 
     messages = []
-    # Support direct vision fallback if image
-    if file_type == 'image' or file_type in ['png', 'webp', 'jpg', 'jpeg']:
+    # Vision Support for Groq
+    if file_type in ['png', 'webp', 'jpg', 'jpeg', 'image']:
         base64_image = base64.b64encode(file_bytes).decode('utf-8')
+        # Map back to standard jpeg/png for data URL
+        mime_url = "image/jpeg"
+        if file_type == 'png': mime_url = "image/png"
+        
         messages = [
             {
                 "role": "user",
@@ -164,7 +169,7 @@ def _try_groq(file_bytes, file_type, extracted_text, prompt):
                     {"type": "text", "text": prompt},
                     {
                         "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
+                        "image_url": {"url": f"data:{mime_url};base64,{base64_image}"}
                     }
                 ]
             }
