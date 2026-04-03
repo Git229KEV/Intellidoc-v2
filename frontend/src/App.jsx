@@ -342,11 +342,6 @@ function App() {
                         </div>
                       </div>
                       <div className="download-actions">
-                        {result.extracted_text?.trim() && (
-                          <button className="icon-button" onClick={() => copyToClipboard(result.extracted_text, 'Full transcription copied.')}>
-                            COPY FULL TEXT
-                          </button>
-                        )}
                         <button className="icon-button" onClick={() => copyToClipboard(result.summary)}>
                            COPY SUMMARY
                         </button>
@@ -363,18 +358,7 @@ function App() {
                         <strong>Diagnostic Trace:</strong> {result.error_details}
                       </div>
                     )}
-                    <div className="summary-large" style={{ marginTop: '2rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                      {highlightText(
-                        (result.extracted_text && result.extracted_text.trim()) ? result.extracted_text : result.summary,
-                        result.entities || {}
-                      )}
-                    </div>
-                    {(result.extracted_text && result.extracted_text.trim() && result.summary && result.summary.trim() !== result.extracted_text.trim()) && (
-                      <p style={{ marginTop: '1.25rem', fontSize: 'clamp(0.95rem, 2vw, 1.1rem)', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                        <span style={{ color: 'var(--accent-neon)', fontSize: '0.65rem', letterSpacing: '0.15em', textTransform: 'uppercase' }}>Synthesis </span>
-                        {result.summary}
-                      </p>
-                    )}
+                    <p className="summary-large" style={{ marginTop: '2rem' }}>{result.summary}</p>
                   </div>
 
                   <div className="floating-layer" id="printable-area">
