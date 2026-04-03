@@ -452,28 +452,7 @@ function App() {
                     )}
                     <div className="summary-large" style={{ marginTop: '2rem' }}>
                       <h2>Document Summary</h2>
-                      <div style={{ fontSize: '1rem', lineHeight: '1.5', whiteSpace: 'pre-line', marginTop: '0.8rem' }}>
-                        {(() => {
-                          const namesCount = result.entities?.names?.length || 0;
-                          const datesCount = result.entities?.dates?.length || 0;
-                          const orgsCount = result.entities?.organizations?.length || 0;
-                          const amountsCount = result.entities?.amounts?.length || 0;
-                          const keyOrg = result.entities?.organizations?.[0] || 'N/A';
-                          const keyDate = result.entities?.dates?.[0] || 'N/A';
-                          const sentiment = result.sentiment || 'Neutral';
-                          const confidence = result.confidence_score ? `${(result.confidence_score * 100).toFixed(1)}%` : 'unknown';
-                          return (
-                            <div>
-                              <div>• This document was parsed with multi-modal intelligence (PDF/DOCX/IMAGE path).</div>
-                              <div>• Found {namesCount} key names, {orgsCount} organizations, {datesCount} dates, and {amountsCount} amounts.</div>
-                              <div>• Most prominent entity: {keyOrg} (anchor date: {keyDate}).</div>
-                              <div>• Sentiment bias detected as {sentiment} with confidence {confidence}.</div>
-                              <div>• Core detection includes policy + financial extraction, contact mapping, and identifiers.</div>
-                              <div>• Synthesis safety layer: validated against sample artifacts and prompt integrity.</div>
-                            </div>
-                          );
-                        })()}
-                      </div>
+                      <p>{result.summary}</p>
                     </div>
                     <div className="detailed-summary" style={{ marginTop: '1.5rem', border: '1px dashed rgba(161, 255, 233, 0.3)', borderRadius: '14px', padding: '1rem', background: 'rgba(25, 32, 57, 0.25)' }}>
                       <h4 style={{ marginBottom: '0.65rem', color: 'var(--accent-ghost)' }}>Detailed Extraction</h4>
