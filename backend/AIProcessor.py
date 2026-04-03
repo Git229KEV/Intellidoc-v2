@@ -54,13 +54,17 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
     """
     
     prompt = """
-    Please analyze the document content with extreme precision.
-    Extract the following standard entities: Names, Dates, Organizations, Monetary Amounts.
-    Identify UNIQUE DOCUMENT FACTORS: Invoice numbers, Ref IDs, Passport/ID numbers, Order numbers, etc.
-    Extract Contact Details (phone, email) and Locations (addresses).
-    Determine overall sentiment (Positive, Negative, or Neutral) and provide a 1-2 sentence summary.
+    CRITICAL: You are an expert document OCR and Analysis agent. 
+    Analyze the provided document image or text with 100% precision.
     
-    IMPORTANT: You MUST return the result in STRICT JSON format matching this schema:
+    1. EXTRACR ALL: Names, Dates, Organizations, Monetary Amounts.
+    2. UNIQUE IDENTIFIERS: Extract EVERY ID, Invoice Number, Receipt ID, etc.
+    3. LOCATIONS & CONTACTS: Extract full addresses, phone numbers, and emails.
+    4. SENTIMENT: Determine if the document tone is Positive, Negative, or Neutral.
+    5. SUMMARY: 1-2 sentence high-level synthesis of what this document is.
+
+    IMPORTANT: If this is an IMAGE, perform deep visual OCR first. 
+    You MUST return the result in STRICT JSON format matching this schema:
     {
       "summary": "...",
       "entities": {
@@ -72,12 +76,23 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
     }
     """
 
-    providers = [
-        ("Gemini", _try_gemini),
-        ("Groq", _try_groq),
-        ("OpenRouter", _try_openrouter),
-        ("HuggingFace", _try_huggingface)
-    ]
+    # Determine provider priority based on file type
+    # For images, Groq Vision is currently more stable/accurate for extracting text
+    is_image = file_type.lower().strip() in ['png', 'webp', 'jpg', 'jpeg', 'image']
+    
+    if is_image:
+        providers = [
+            ("Groq", _try_groq),
+            ("Gemini", _try_gemini),
+            ("OpenRouter", _try_openrouter)
+        ]
+    else:
+        providers = [
+            ("Gemini", _try_gemini),
+            ("Groq", _try_groq),
+            ("OpenRouter", _try_openrouter),
+            ("HuggingFace", _try_huggingface)
+        ]
 
     errors = []
     for name, func in providers:
