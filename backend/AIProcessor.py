@@ -245,7 +245,7 @@ def _try_gemini(file_bytes, file_type, extracted_text, prompt):
         contents = [f"Document Text:\n\n{extracted_text}\n\n{prompt}"]
     
     try:
-        # Set a strict 7s timeout for Gemini in serverless environment
+        # Set timeout for Gemini in serverless environment (minimum 10s required)
         print("DEBUG: Sending request to Gemini...")
         response = client.models.generate_content(
             model='gemini-2.5-flash',
@@ -254,7 +254,7 @@ def _try_gemini(file_bytes, file_type, extracted_text, prompt):
                 response_mime_type="application/json",
                 response_schema=AnalysisSchema,
                 temperature=0.1,
-                http_options={'timeout': 7000} # 7 seconds
+                http_options={'timeout': 10000} # Minimum 10 seconds required
             ),
         )
         result = response.text
@@ -307,7 +307,7 @@ def _try_groq(file_bytes, file_type, extracted_text, prompt):
         # Using a shorter timeout for Groq
         print("DEBUG: Sending request to Groq...")
         response = client.chat.completions.create(
-            model="llama-3.2-90b-vision-preview",
+            model="llama-3.2-11b-vision-preview",
             messages=messages,
             response_format={"type": "json_object"},
             temperature=0.1,
