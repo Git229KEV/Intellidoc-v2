@@ -22,6 +22,31 @@ class AnalysisSchema(BaseModel):
     sentiment: str = Field(default="Neutral", description="The overall sentiment of the content. Must be Positive, Negative, or Neutral")
     confidence_score: float = Field(default=0.0, description="Confidence score for the extraction (0.0 to 1.0)")
 
+def clean_json_response(raw_text: str) -> dict:
+    """
+    Cleans markdown code blocks and attempts to parse JSON from AI responses.
+    """
+    try:
+        # Standard cleaning
+        text = raw_text.strip()
+        if text.startswith("```json"):
+            text = text[7:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+        
+        # If extraction within brackets fails, try searching
+        if not (text.startswith('{') and text.endswith('}')):
+            start = text.find('{')
+            end = text.rfind('}') + 1
+            if start != -1 and end != 0:
+                text = text[start:end]
+                
+        return json.loads(text)
+    except Exception as e:
+        print(f"ERROR: Failed to parse JSON: {str(e)}\nRaw: {raw_text[:200]}")
+        raise ValueError(f"Invalid JSON format from AI: {str(e)}")
+
 def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "") -> dict:
     """
     Attempts to analyze the document using multiple AI providers in sequence.
@@ -58,12 +83,21 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
     for name, func in providers:
         try:
             print(f"DEBUG: Attempting analysis with {name}...")
-            result = func(file_bytes, file_type, extracted_text, prompt)
-            if result:
-                print(f"DEBUG: {name} success.")
-                return AnalysisSchema.model_validate(result).model_dump()
+            raw_result = func(file_bytes, file_type, extracted_text, prompt)
+            
+            if raw_result:
+                # Some funcs return strings, some return dicts. Normalize to strings for cleaning.
+                if isinstance(raw_result, dict):
+                    json_data = raw_result
+                else:
+                    json_data = clean_json_response(str(raw_result))
+                
+                print(f"DEBUG: {name} raw success. Validating schema...")
+                validated_data = AnalysisSchema.model_validate(json_data)
+                return validated_data.model_dump()
+                
         except Exception as e:
-            error_msg = f"{name} failed: {str(e)}"
+            error_msg = f"{name} process failed: {str(e)}"
             print(f"DEBUG: {error_msg}")
             errors.append(error_msg)
             continue
@@ -106,7 +140,9 @@ def _try_gemini(file_bytes, file_type, extracted_text, prompt):
             temperature=0.1,
         ),
     )
-    return json.loads(response.text)
+    # The new SDK response.text is already clean JSON if response_schema is used,
+    # but we handle it via the main loop's cleaning just in case.
+    return response.text
 
 def _try_groq(file_bytes, file_type, extracted_text, prompt):
     api_key = os.getenv("GROQ_API_KEY")
@@ -141,7 +177,7 @@ def _try_groq(file_bytes, file_type, extracted_text, prompt):
         response_format={"type": "json_object"},
         temperature=0.1
     )
-    return json.loads(response.choices[0].message.content)
+    return response.choices[0].message.content
 
 def _try_openrouter(file_bytes, file_type, extracted_text, prompt):
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -156,7 +192,7 @@ def _try_openrouter(file_bytes, file_type, extracted_text, prompt):
         response_format={"type": "json_object"},
         temperature=0.1
     )
-    return json.loads(response.choices[0].message.content)
+    return response.choices[0].message.content
 
 def _try_huggingface(file_bytes, file_type, extracted_text, prompt):
     api_key = os.getenv("HUGGINGFACE_API_KEY")
@@ -175,9 +211,4 @@ def _try_huggingface(file_bytes, file_type, extracted_text, prompt):
         raise Exception(f"HF Error Status {response.status_code}")
     
     raw_text = response.json()[0]['generated_text']
-    try:
-        start = raw_text.find('{')
-        end = raw_text.rfind('}') + 1
-        return json.loads(raw_text[start:end])
-    except:
-        return json.loads(raw_text)
+    return raw_text

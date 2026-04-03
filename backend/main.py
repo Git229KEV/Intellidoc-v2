@@ -95,16 +95,18 @@ async def analyze_document(request: DocumentRequest, api_key: str = Depends(veri
         )
         
     except Exception as e:
-        print(f"CRITICAL ERROR: {str(e)}")
-        # Complete fallback for unexpected system crashes
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"CRITICAL SYSTEM ERROR: {error_trace}")
+        
         return DocumentResponse(
             status="error",
             fileName=request.fileName,
-            summary="A critical system error occurred during processing.",
+            summary="A critical system error occurred during analysis.",
             entities=EntitiesResponse(),
             sentiment="Neutral",
             confidence_score=0.0,
-            error_details=str(e)
+            error_details=f"System Crash: {str(e)}"
         )
 
 from mangum import Mangum
