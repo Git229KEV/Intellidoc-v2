@@ -4,8 +4,9 @@ import base64
 from fastapi import FastAPI, HTTPException, Security, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from dotenv import load_dotenv
+from mangum import Mangum
 
 # Ensure the current directory is in the path for local imports on Vercel
 sys.path.append(os.path.dirname(__file__))
@@ -66,6 +67,32 @@ class DocumentResponse(BaseModel):
     confidence_score: float = Field(..., description="Neural synthesis confidence")
     error_details: str = Field(default="", description="Detailed error logs for fallback debugging")
 
+
+def _safe_entities_payload(raw) -> dict:
+    """Coerce AI output into a dict Pydantic can validate (avoids 500 on bad shapes)."""
+    keys = (
+        "names",
+        "dates",
+        "organizations",
+        "amounts",
+        "unique_identifiers",
+        "locations",
+        "contact_details",
+    )
+    if not isinstance(raw, dict):
+        return {k: [] for k in keys}
+    out = {}
+    for k in keys:
+        v = raw.get(k)
+        if isinstance(v, list):
+            out[k] = [str(x) for x in v]
+        elif v is None:
+            out[k] = []
+        else:
+            out[k] = [str(v)]
+    return out
+
+
 @app.post("/api/document-analyze", response_model=DocumentResponse)
 async def analyze_document(request: DocumentRequest, api_key: str = Depends(verify_api_key)):
     try:
@@ -91,31 +118,34 @@ async def analyze_document(request: DocumentRequest, api_key: str = Depends(veri
         # Assemble Response
         # if generate_analysis returns a status error (fallback failed), we handle it via DocumentResponse
         is_success = "error_details" not in analysis_result or not analysis_result["error_details"]
-        
-        return DocumentResponse(
-            status="success" if is_success else "error",
-            fileName=request.fileName,
-            summary=analysis_result.get("summary", "Analysis failed."),
-            entities=EntitiesResponse(**analysis_result.get("entities", {})),
-            sentiment=analysis_result.get("sentiment", "Neutral"),
-            confidence_score=float(analysis_result.get("confidence_score", 0.0)),
-            error_details=analysis_result.get("error_details", "")
-        )
-        
+
+        try:
+            entities = EntitiesResponse.model_validate(
+                _safe_entities_payload(analysis_result.get("entities"))
+            )
+            return DocumentResponse(
+                status="success" if is_success else "error",
+                fileName=request.fileName,
+                summary=analysis_result.get("summary", "Analysis failed."),
+                entities=entities,
+                sentiment=analysis_result.get("sentiment", "Neutral"),
+                confidence_score=float(analysis_result.get("confidence_score", 0.0)),
+                error_details=analysis_result.get("error_details", ""),
+            )
+        except ValidationError as ve:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Response validation failed: {ve}",
+            )
+
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
         print(f"CRITICAL SYSTEM ERROR: {error_trace}")
-        
-        return DocumentResponse(
-            status="error",
-            fileName=request.fileName,
-            summary="A critical system error occurred during analysis.",
-            entities=EntitiesResponse(),
-            sentiment="Neutral",
-            confidence_score=0.0,
-            error_details=f"System Crash: {str(e)}"
-        )
+
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 # Health check for Vercel deployment status
 @app.get("/api/health")
@@ -130,3 +160,6 @@ def health_check():
 @app.get("/")
 def read_root():
     return {"message": "Intelligent Document Processor is active.", "version": "1.1.0"}
+
+
+handler = Mangum(app, lifespan="off")

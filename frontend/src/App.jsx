@@ -170,14 +170,47 @@ function App() {
         body: JSON.stringify(payload)
       });
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error(`Neural Link Offline [404] - The backend connection was not found.`);
+      const parseHttpError = async () => {
+        const text = await response.text();
+        try {
+          const j = JSON.parse(text);
+          if (j.detail !== undefined) {
+            if (Array.isArray(j.detail)) {
+              return j.detail.map((d) => d.msg || JSON.stringify(d)).join(' ');
+            }
+            return String(j.detail);
+          }
+        } catch {
+          /* ignore */
         }
-        throw new Error(`Sync protocol anomaly [${response.status}]`);
+        return text?.slice(0, 500) || '';
+      };
+
+      if (!response.ok) {
+        const detail = await parseHttpError();
+        if (response.status === 404) {
+          throw new Error('Neural Link Offline [404] — API route not found. Check deployment.');
+        }
+        if (response.status === 401) {
+          throw new Error('Invalid API key (401). Set x-api-key to match server API_KEY.');
+        }
+        if (response.status === 422) {
+          throw new Error(detail || 'Invalid request payload (422).');
+        }
+        if (response.status === 504 || response.status === 502) {
+          throw new Error('Server timed out (gateway). Try a smaller file or retry.');
+        }
+        throw new Error(
+          detail || `Request failed [${response.status}]. If 500: check Vercel env API_KEY and AI provider keys.`
+        );
       }
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error('Invalid JSON from server. Check API deployment.');
+      }
       setProgress(100);
       setResult(data);
       
