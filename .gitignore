@@ -1,0 +1,20 @@
+# Environment and Virtual Environments
+.env
+.venv/
+env/
+venv/
+ENV/
+__pycache__/
+*.pyc
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo

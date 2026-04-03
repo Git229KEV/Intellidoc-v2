@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+google-genai
+pdfplumber
+python-docx
+pytesseract
+Pillow
+python-dotenv
+mangum
+openai
+requests
+pymupdf

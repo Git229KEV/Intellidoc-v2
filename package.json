@@ -1,0 +1,8 @@
+{
+  "name": "ai-doc-scanner-monorepo",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "install-frontend": "cd frontend && npm install"
+  }
+}
