@@ -441,7 +441,7 @@ function App() {
                       <span>HTTPS / REST</span>
                     </div>
                     <div className="code-content">
-                      {`curl -X POST "https://intelli-doc-nine.vercel.app/api/document-analyze" \\
+                      {`curl -X POST "https://intellidoc-v2.vercel.app/api/document-analyze" \\
   -H "x-api-key: ${apiKey || 'sk_track2_987654321'}" \\
   -H "Content-Type: application/json" \\
   -d '{
