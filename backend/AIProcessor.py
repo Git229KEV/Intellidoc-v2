@@ -180,7 +180,7 @@ def _try_groq(file_bytes, file_type, extracted_text, prompt):
     
     # Using a shorter timeout for Groq
     response = client.chat.completions.create(
-        model="llama-3.2-11b-vision-preview",
+        model="llama-3.2-90b-vision-preview",
         messages=messages,
         response_format={"type": "json_object"},
         temperature=0.1,
