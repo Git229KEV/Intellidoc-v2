@@ -47,6 +47,42 @@ def clean_json_response(raw_text: str) -> dict:
         print(f"ERROR: Failed to parse JSON: {str(e)}\nRaw: {raw_text[:200]}")
         raise ValueError(f"Invalid JSON format from AI: {str(e)}")
 
+def is_sample_data(response_dict: dict, file_type: str) -> bool:
+    """
+    Detects if the response is sample/default data rather than actual analysis.
+    """
+    summary = response_dict.get("summary", "").lower()
+    entities = response_dict.get("entities", {})
+    
+    # Known sample data indicators
+    sample_indicators = [
+        "techcorp", "receipt", "sample", "example", "dummy",
+        "january 12", "1234", "test document", "example data",
+        "purchase made", "rcpt-001", "555-1234"
+    ]
+    
+    for indicator in sample_indicators:
+        if indicator in summary:
+            print(f"DEBUG: Detected sample data indicator: '{indicator}'")
+            return True
+    
+    # For images, if no entities extracted, likely sample data
+    if file_type.lower().strip() in ['png', 'webp', 'jpg', 'jpeg', 'image']:
+        total_entities = sum([
+            len(entities.get("names", [])),
+            len(entities.get("dates", [])),
+            len(entities.get("organizations", [])),
+            len(entities.get("locations", [])),
+            len(entities.get("contact_details", [])),
+            len(entities.get("unique_identifiers", [])),
+            len(entities.get("amounts", [])),
+        ])
+        if total_entities == 0:
+            print(f"DEBUG: Image analysis returned no entities - likely sample/empty")
+            return True
+    
+    return False
+
 def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "") -> dict:
     """
     Attempts to analyze the document using multiple AI providers in sequence.
@@ -58,44 +94,60 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
     # Different prompts for images vs text
     if is_image:
         prompt = """
-        CRITICAL: You are an expert document OCR and Image Analysis agent. 
-        Please perform DEEP VISUAL ANALYSIS of this image/document.
+        YOU ARE A PROFESSIONAL DOCUMENT ANALYZER. YOU MUST ANALYZE THE ACTUAL IMAGE PROVIDED.
         
-        EXTRACT WITH 100% PRECISION:
-        1. ALL text visible in the image (perform OCR if needed)
-        2. Names, Dates, Organizations, Monetary Amounts from the content
-        3. UNIQUE IDENTIFIERS: Extract EVERY ID, Invoice Number, Receipt ID, Document numbers, etc.
-        4. LOCATIONS & CONTACTS: Extract full addresses, phone numbers, and emails visible in the image
-        5. SENTIMENT: Determine if the document tone is Positive, Negative, or Neutral.
-        6. SUMMARY: 1-2 sentence high-level synthesis of what this document/image contains.
+        CRITICAL INSTRUCTIONS:
+        1. LOOK AT THE IMAGE CAREFULLY - You MUST perform OCR/text recognition on the visual content
+        2. READ ALL TEXT VISIBLE - Extract every word, name, date, number, and identifiable information
+        3. DO NOT generate sample data - ONLY report what you see in the image
+        4. IF IMAGE IS BLANK OR UNREADABLE - Return empty arrays, NOT sample data
         
-        IMPORTANT: This IS an IMAGE. You MUST perform visual OCR extraction. 
-        Do NOT return empty results. Analyze the visual content deeply.
+        MANDATORY EXTRACTION REQUIREMENTS:
+        1. ALL NAMES visible in the image (people, companies, organizations)
+        2. ALL DATES visible (any date format)
+        3. ALL ORGANIZATIONS/COMPANIES mentioned
+        4. ALL MONETARY AMOUNTS or prices
+        5. ALL UNIQUE IDENTIFIERS (ID numbers, invoice numbers, receipt numbers, reference codes)
+        6. ALL LOCATIONS/ADDRESSES visible
+        7. ALL CONTACT DETAILS (phone numbers, emails, websites)
+        8. SENTIMENT of the document (Positive, Negative, or Neutral tone)
+        9. SUMMARY: 1-2 sentences describing what this document/image shows
         
-        Return the result in STRICT JSON format matching this schema:
+        CRITICAL: 
+        - If you cannot read the image clearly, return empty results
+        - Do NOT hallucinate or invent data
+        - Do NOT use sample data like "TechCorp" or "receipt example"
+        - Only extract what is VISUALLY present in the image
+        
+        Return ONLY valid JSON in this exact format:
         {
-          "summary": "...",
+          "summary": "Brief description of what the image shows (empty if unreadable)",
           "entities": {
-            "names": [], "dates": [], "organizations": [], "amounts": [],
-            "unique_identifiers": [], "locations": [], "contact_details": []
+            "names": ["exact names from image"],
+            "dates": ["all visible dates"],
+            "organizations": ["companies/orgs mentioned"],
+            "amounts": ["monetary values if any"],
+            "unique_identifiers": ["ID numbers, codes"],
+            "locations": ["addresses and places"],
+            "contact_details": ["phones, emails, websites"]
           },
-          "sentiment": "...",
+          "sentiment": "Positive/Negative/Neutral",
           "confidence_score": 0.95
         }
         """
     else:
         prompt = """
-        CRITICAL: You are an expert document OCR and Analysis agent. 
+        CRITICAL: You are an expert document analysis agent. 
         Analyze the provided document with 100% precision.
         
-        1. EXTRACR ALL: Names, Dates, Organizations, Monetary Amounts.
+        EXTRACT ALL OF THE FOLLOWING:
+        1. Names, Dates, Organizations, Monetary Amounts
         2. UNIQUE IDENTIFIERS: Extract EVERY ID, Invoice Number, Receipt ID, etc.
-        3. LOCATIONS & CONTACTS: Extract full addresses, phone numbers, and emails.
-        4. SENTIMENT: Determine if the document tone is Positive, Negative, or Neutral.
-        5. SUMMARY: 1-2 sentence high-level synthesis of what this document is.
+        3. LOCATIONS & CONTACTS: Extract full addresses, phone numbers, and emails
+        4. SENTIMENT: Determine if the document tone is Positive, Negative, or Neutral
+        5. SUMMARY: 1-2 sentence high-level synthesis of what this document is
 
-        IMPORTANT: If this is an IMAGE, perform deep visual OCR first. 
-        You MUST return the result in STRICT JSON format matching this schema:
+        Return result in STRICT JSON format:
         {
           "summary": "...",
           "entities": {
@@ -110,11 +162,14 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
     # Determine provider priority based on file type
     # For images, Groq Vision is currently more stable/accurate for extracting text
     
+    # Determine provider priority based on file type
+    # For images, ONLY use vision-capable providers (Groq and Gemini)
+    # OpenRouter and HuggingFace cannot process images and will return sample data
+    
     if is_image:
         providers = [
             ("Groq", _try_groq),
             ("Gemini", _try_gemini),
-            ("OpenRouter", _try_openrouter)
         ]
     else:
         providers = [
@@ -139,6 +194,13 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
                 
                 print(f"DEBUG: {name} raw success. Validating schema...")
                 validated_data = AnalysisSchema.model_validate(json_data)
+                
+                # Check for sample data
+                if is_sample_data(json_data, file_type):
+                    print(f"DEBUG: {name} returned sample data, trying next provider...")
+                    errors.append(f"{name} returned sample/default data")
+                    continue
+                
                 return validated_data.model_dump()
                 
         except Exception as e:
@@ -160,41 +222,55 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
 
 def _try_gemini(file_bytes, file_type, extracted_text, prompt):
     api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key: return None
+    if not api_key:
+        print("DEBUG: GEMINI_API_KEY not set")
+        return None
     
     client = genai.Client(api_key=api_key)
     file_type = file_type.lower().strip()
     
     contents = []
     if file_type in ['png', 'webp', 'jpg', 'jpeg', 'image']:
+        print(f"DEBUG: Gemini processing image - file_type: {file_type}, size: {len(file_bytes)} bytes")
         # Ensure common image formats are consistent
         mime = "image/jpeg"
         if file_type == 'png': mime = "image/png"
         elif file_type == 'webp': mime = "image/webp"
         contents = [types.Part.from_bytes(data=file_bytes, mime_type=mime), prompt]
+        print(f"DEBUG: Gemini image prepared with mime: {mime}")
     elif file_type == 'pdf':
+        print(f"DEBUG: Gemini processing PDF - size: {len(file_bytes)} bytes")
         contents = [types.Part.from_bytes(data=file_bytes, mime_type="application/pdf"), prompt]
     else:
         contents = [f"Document Text:\n\n{extracted_text}\n\n{prompt}"]
     
-    # Set a strict 7s timeout for Gemini in serverless environment
-    response = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=contents,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=AnalysisSchema,
-            temperature=0.1,
-            http_options={'timeout': 7000} # 7 seconds
-        ),
-    )
-    # The new SDK response.text is already clean JSON if response_schema is used,
-    # but we handle it via the main loop's cleaning just in case.
-    return response.text
+    try:
+        # Set a strict 7s timeout for Gemini in serverless environment
+        print("DEBUG: Sending request to Gemini...")
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=contents,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=AnalysisSchema,
+                temperature=0.1,
+                http_options={'timeout': 7000} # 7 seconds
+            ),
+        )
+        result = response.text
+        print("DEBUG: Gemini response received successfully")
+        # The new SDK response.text is already clean JSON if response_schema is used,
+        # but we handle it via the main loop's cleaning just in case.
+        return result
+    except Exception as e:
+        print(f"DEBUG: Gemini error: {str(e)}")
+        raise
 
 def _try_groq(file_bytes, file_type, extracted_text, prompt):
     api_key = os.getenv("GROQ_API_KEY")
-    if not api_key: return None
+    if not api_key: 
+        print("DEBUG: GROQ_API_KEY not set")
+        return None
     
     client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=api_key)
     file_type = file_type.lower().strip()
@@ -202,7 +278,10 @@ def _try_groq(file_bytes, file_type, extracted_text, prompt):
     messages = []
     # Vision Support for Groq
     if file_type in ['png', 'webp', 'jpg', 'jpeg', 'image']:
+        print(f"DEBUG: Groq processing image - file_type: {file_type}, size: {len(file_bytes)} bytes")
         base64_image = base64.b64encode(file_bytes).decode('utf-8')
+        print(f"DEBUG: Image encoded to base64, length: {len(base64_image)}")
+        
         # Map back to standard jpeg/png for data URL
         mime_url = "image/jpeg"
         if file_type == 'png': mime_url = "image/png"
@@ -219,19 +298,27 @@ def _try_groq(file_bytes, file_type, extracted_text, prompt):
                 ]
             }
         ]
+        print("DEBUG: Groq vision message prepared")
     else:
         content = f"Document Text:\n\n{extracted_text}\n\n{prompt}"
         messages = [{"role": "user", "content": content}]
     
-    # Using a shorter timeout for Groq
-    response = client.chat.completions.create(
-        model="llama-3.2-90b-vision-preview",
-        messages=messages,
-        response_format={"type": "json_object"},
-        temperature=0.1,
-        timeout=5.0
-    )
-    return response.choices[0].message.content
+    try:
+        # Using a shorter timeout for Groq
+        print("DEBUG: Sending request to Groq...")
+        response = client.chat.completions.create(
+            model="llama-3.2-90b-vision-preview",
+            messages=messages,
+            response_format={"type": "json_object"},
+            temperature=0.1,
+            timeout=10.0  # Increased timeout for image processing
+        )
+        result = response.choices[0].message.content
+        print("DEBUG: Groq response received successfully")
+        return result
+    except Exception as e:
+        print(f"DEBUG: Groq error: {str(e)}")
+        raise
 
 def _try_openrouter(file_bytes, file_type, extracted_text, prompt):
     api_key = os.getenv("OPENROUTER_API_KEY")
