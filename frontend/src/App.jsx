@@ -40,6 +40,7 @@ function App() {
   const [hoverActive, setHoverActive] = useState(false);
   const [progress, setProgress] = useState(0);
   const [activePage, setActivePage] = useState('analyzer');
+  const [progressStage, setProgressStage] = useState('');
   const inputRef = useRef(null);
 
   // Aurora Mouse Follow (Parallax)
@@ -98,7 +99,7 @@ function App() {
     
     const maxSize = 4 * 1024 * 1024; // 4MB for Vercel
     if (selectedFile.size > maxSize) {
-      setError('Neural data too heavy. Maximum allowed size is 4MB for cloud sync.');
+      setError('File too large');
       return;
     }
     
@@ -124,12 +125,23 @@ function App() {
     setLoading(true);
     setError('');
     setProgress(10);
+    setProgressStage('Analyzing document...');
     
-    // Simulate progress
+    // Simulate progress with stage updates
     const interval = setInterval(() => {
       setProgress((prev) => {
-        if (prev >= 90) return prev;
-        return prev + Math.random() * 15;
+        let newProgress = prev + Math.random() * 15;
+        
+        if (newProgress < 35) {
+          setProgressStage('Analyzing document... 📄');
+        } else if (newProgress < 65) {
+          setProgressStage('Generating summary... 📝');
+        } else {
+          setProgressStage('Extracting entities... 🔍');
+        }
+        
+        if (newProgress >= 90) return prev;
+        return newProgress;
       });
     }, 800);
     
@@ -188,6 +200,14 @@ function App() {
 
       if (!response.ok) {
         const detail = await parseHttpError();
+        
+        // Handle specific error conditions
+        if (detail.includes('File too large') || response.status === 413) {
+          throw new Error('File too large');
+        }
+        if (detail.includes('Unsupported file type') || response.status === 415) {
+          throw new Error('Unsupported file type');
+        }
         if (response.status === 404) {
           throw new Error('Neural Link Offline [404] — API route not found. Check deployment.');
         }
@@ -212,6 +232,7 @@ function App() {
         throw new Error('Invalid JSON from server. Check API deployment.');
       }
       setProgress(100);
+      setProgressStage('✅ Complete!');
       setResult(data);
       
       if (data.status === 'failed' || data.status === 'error') {
@@ -219,7 +240,16 @@ function App() {
       }
     } catch (err) {
       console.error(err);
-      setError(err.message || 'The nebula processor drifted out of phase.');
+      const errorMsg = err.message || 'The nebula processor drifted out of phase.';
+      
+      // Set specific error type
+      if (errorMsg === 'File too large' || errorMsg.includes('File too large')) {
+        setError('File too large');
+      } else if (errorMsg === 'Unsupported file type' || errorMsg.includes('Unsupported file type')) {
+        setError('Unsupported file type');
+      } else {
+        setError('Processing Failed');
+      }
     } finally {
       clearInterval(interval);
       setLoading(false);
@@ -231,6 +261,7 @@ function App() {
     setResult(null);
     setError('');
     setProgress(0);
+    setProgressStage('');
     if (inputRef.current) inputRef.current.value = '';
   };
 
@@ -316,7 +347,7 @@ function App() {
                   </div>
                   <h2 className="action-text">{dragActive ? "Inject Data" : "Initialize Source"}</h2>
                   <p className="supported-formats-label">
-                    Supported file formats .docx, .pdf, .jpg/.png <br/>
+                    Supported File Formats: 📄 DOCX • 📕 PDF • 🖼️ IMAGE <br/>
                     Max file upload size 4mb
                   </p>
                 </div>
@@ -352,15 +383,15 @@ function App() {
                 <div className="nebula-results">
                   <div className="nebula-skeleton span-full" style={{ height: 'auto' }}>
                     <div className="loader-content">
-                      <div className="loader-text">Analyzing document using AI...</div>
+                      <div className="loader-text">{progressStage}</div>
                       <div className="progress-container">
                         <div className="progress-bar" style={{ width: `${progress}%` }}></div>
                       </div>
-                      <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Initializing neural synth protocols... {Math.round(progress)}%</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{Math.round(progress)}% Complete</p>
                     </div>
                   </div>
                 </div>
-              )}
+              )
 
               {result && !loading && (
                 <div className="nebula-results">

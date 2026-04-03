@@ -53,32 +53,62 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
     Priority: Gemini -> Groq Vision -> OpenRouter -> Hugging Face
     """
     
-    prompt = """
-    CRITICAL: You are an expert document OCR and Analysis agent. 
-    Analyze the provided document image or text with 100% precision.
+    is_image = file_type.lower().strip() in ['png', 'webp', 'jpg', 'jpeg', 'image']
     
-    1. EXTRACR ALL: Names, Dates, Organizations, Monetary Amounts.
-    2. UNIQUE IDENTIFIERS: Extract EVERY ID, Invoice Number, Receipt ID, etc.
-    3. LOCATIONS & CONTACTS: Extract full addresses, phone numbers, and emails.
-    4. SENTIMENT: Determine if the document tone is Positive, Negative, or Neutral.
-    5. SUMMARY: 1-2 sentence high-level synthesis of what this document is.
+    # Different prompts for images vs text
+    if is_image:
+        prompt = """
+        CRITICAL: You are an expert document OCR and Image Analysis agent. 
+        Please perform DEEP VISUAL ANALYSIS of this image/document.
+        
+        EXTRACT WITH 100% PRECISION:
+        1. ALL text visible in the image (perform OCR if needed)
+        2. Names, Dates, Organizations, Monetary Amounts from the content
+        3. UNIQUE IDENTIFIERS: Extract EVERY ID, Invoice Number, Receipt ID, Document numbers, etc.
+        4. LOCATIONS & CONTACTS: Extract full addresses, phone numbers, and emails visible in the image
+        5. SENTIMENT: Determine if the document tone is Positive, Negative, or Neutral.
+        6. SUMMARY: 1-2 sentence high-level synthesis of what this document/image contains.
+        
+        IMPORTANT: This IS an IMAGE. You MUST perform visual OCR extraction. 
+        Do NOT return empty results. Analyze the visual content deeply.
+        
+        Return the result in STRICT JSON format matching this schema:
+        {
+          "summary": "...",
+          "entities": {
+            "names": [], "dates": [], "organizations": [], "amounts": [],
+            "unique_identifiers": [], "locations": [], "contact_details": []
+          },
+          "sentiment": "...",
+          "confidence_score": 0.95
+        }
+        """
+    else:
+        prompt = """
+        CRITICAL: You are an expert document OCR and Analysis agent. 
+        Analyze the provided document with 100% precision.
+        
+        1. EXTRACR ALL: Names, Dates, Organizations, Monetary Amounts.
+        2. UNIQUE IDENTIFIERS: Extract EVERY ID, Invoice Number, Receipt ID, etc.
+        3. LOCATIONS & CONTACTS: Extract full addresses, phone numbers, and emails.
+        4. SENTIMENT: Determine if the document tone is Positive, Negative, or Neutral.
+        5. SUMMARY: 1-2 sentence high-level synthesis of what this document is.
 
-    IMPORTANT: If this is an IMAGE, perform deep visual OCR first. 
-    You MUST return the result in STRICT JSON format matching this schema:
-    {
-      "summary": "...",
-      "entities": {
-        "names": [], "dates": [], "organizations": [], "amounts": [],
-        "unique_identifiers": [], "locations": [], "contact_details": []
-      },
-      "sentiment": "...",
-      "confidence_score": 0.95
-    }
-    """
+        IMPORTANT: If this is an IMAGE, perform deep visual OCR first. 
+        You MUST return the result in STRICT JSON format matching this schema:
+        {
+          "summary": "...",
+          "entities": {
+            "names": [], "dates": [], "organizations": [], "amounts": [],
+            "unique_identifiers": [], "locations": [], "contact_details": []
+          },
+          "sentiment": "...",
+          "confidence_score": 0.95
+        }
+        """
 
     # Determine provider priority based on file type
     # For images, Groq Vision is currently more stable/accurate for extracting text
-    is_image = file_type.lower().strip() in ['png', 'webp', 'jpg', 'jpeg', 'image']
     
     if is_image:
         providers = [

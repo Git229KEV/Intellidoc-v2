@@ -109,6 +109,17 @@ async def analyze_document(request: DocumentRequest, api_key: str = Depends(veri
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid Base64 string")
 
+        # File size validation (4MB limit for Vercel)
+        max_size = 4 * 1024 * 1024
+        if len(file_bytes) > max_size:
+            raise HTTPException(status_code=413, detail="File too large")
+
+        # File type validation
+        supported_types = ['pdf', 'docx', 'doc', 'image', 'png', 'jpg', 'jpeg', 'webp']
+        file_type_lower = request.fileType.lower().strip()
+        if file_type_lower not in supported_types:
+            raise HTTPException(status_code=415, detail="Unsupported file type")
+
         # Extract text locally for all file types to ensure fallback providers
         extracted_text = parse_document(request.fileBase64, request.fileType)
         
@@ -145,7 +156,16 @@ async def analyze_document(request: DocumentRequest, api_key: str = Depends(veri
         error_trace = traceback.format_exc()
         print(f"CRITICAL SYSTEM ERROR: {error_trace}")
 
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+        # Determine error type for user-friendly message
+        error_msg = str(e)
+        if 'size' in error_msg.lower() or len(error_msg) > 4*1024*1024:
+            detail = "File too large"
+        elif 'type' in error_msg.lower() or 'format' in error_msg.lower():
+            detail = "Unsupported file type"
+        else:
+            detail = "Processing Failed"
+        
+        raise HTTPException(status_code=500, detail=detail)
 
 # Health check for Vercel deployment status
 @app.get("/api/health")
