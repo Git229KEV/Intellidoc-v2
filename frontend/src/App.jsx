@@ -346,9 +346,15 @@ function App() {
                     <img src="/logo.png" alt="IntelliDoc Logo" className="singularity-icon" style={{ filter: 'drop-shadow(0 0 10px var(--accent-void))', borderRadius: '50%', objectFit: 'cover' }} />
                   </div>
                   <h2 className="action-text">{dragActive ? "Inject Data" : "Initialize Source"}</h2>
+                  <div className="supported-files-hero">
+                    <div className="nebula-chip">📄 DOCX</div>
+                    <div className="nebula-chip">📕 PDF</div>
+                    <div className="nebula-chip">🖼️ IMAGE</div>
+                  </div>
                   <p className="supported-formats-label">
-                    Supported File Formats: 📄 DOCX • 📕 PDF • 🖼️ IMAGE <br/>
-                    Max file upload size 4mb
+                    🚀 <strong>Supported File Formats</strong> — Drop your document into the nebula.
+                    <br />
+                    ☁️ Max file upload: 4MB
                   </p>
                 </div>
                 <input 
@@ -383,11 +389,14 @@ function App() {
                 <div className="nebula-results">
                   <div className="nebula-skeleton span-full" style={{ height: 'auto' }}>
                     <div className="loader-content">
+                      <div className="nebula-arc" />
                       <div className="loader-text">{progressStage}</div>
                       <div className="progress-container">
                         <div className="progress-bar" style={{ width: `${progress}%` }}></div>
                       </div>
-                      <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{Math.round(progress)}% Complete</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        {Math.round(progress)}% Complete — tuning cosmic neural matrix...
+                      </p>
                     </div>
                   </div>
                 </div>

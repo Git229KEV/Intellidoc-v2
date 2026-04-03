@@ -809,6 +809,42 @@ body {
   letter-spacing: -0.02em;
 }
 
+.nebula-arc {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 2px dashed rgba(131, 255, 239, 0.3);
+  box-shadow: 0 0 30px rgba(89, 239, 255, 0.45);
+  animation: spin 3s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.supported-files-hero {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.nebula-chip {
+  padding: 0.45rem 1rem;
+  border: 1px solid rgba(166, 241, 255, 0.35);
+  background: rgba(44, 53, 86, 0.32);
+  color: #f5f5f5;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.86rem;
+  box-shadow: 0 0 12px rgba(102, 243, 255, 0.15);
+  backdrop-filter: blur(4px);
+}
+
 .progress-container {
   width: 100%;
   max-width: 600px;
