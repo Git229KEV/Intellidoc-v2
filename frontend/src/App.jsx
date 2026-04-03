@@ -41,7 +41,14 @@ function App() {
   const [progress, setProgress] = useState(0);
   const [activePage, setActivePage] = useState('analyzer');
   const [progressStage, setProgressStage] = useState('');
+  const [stepIndex, setStepIndex] = useState(0);
   const inputRef = useRef(null);
+
+  const nebulaSteps = [
+    { id: 0, icon: '🛰️', title: 'Analyzing' },
+    { id: 1, icon: '✍️', title: 'Summarizing' },
+    { id: 2, icon: '🔍', title: 'Extracting' },
+  ];
 
   // Aurora Mouse Follow (Parallax)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -131,13 +138,17 @@ function App() {
     const interval = setInterval(() => {
       setProgress((prev) => {
         let newProgress = prev + Math.random() * 15;
-        
+        if (newProgress > 99) newProgress = 99;
+
+        const newStepIndex = newProgress < 35 ? 0 : newProgress < 65 ? 1 : 2;
+        setStepIndex(newStepIndex);
+
         if (newProgress < 35) {
-          setProgressStage('Analyzing document... 📄');
+          setProgressStage('🛰️ Analyzing document');
         } else if (newProgress < 65) {
-          setProgressStage('Generating summary... 📝');
+          setProgressStage('✍️ Generating summary');
         } else {
-          setProgressStage('Extracting entities... 🔍');
+          setProgressStage('🔍 Extracting entities');
         }
         
         if (newProgress >= 90) return prev;
@@ -390,13 +401,21 @@ function App() {
                   <div className="nebula-skeleton span-full" style={{ height: 'auto' }}>
                     <div className="loader-content">
                       <div className="nebula-arc" />
-                      <div className="loader-text">{progressStage}</div>
-                      <div className="progress-container">
-                        <div className="progress-bar" style={{ width: `${progress}%` }}></div>
-                      </div>
-                      <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        {Math.round(progress)}% Complete — tuning cosmic neural matrix...
-                      </p>
+                    <div className="nebula-stepper">
+                      {nebulaSteps.map((step) => (
+                        <div key={step.id} className={`nebula-step ${step.id <= stepIndex ? 'active' : ''}`}>
+                          <div className="nebula-step-icon" aria-hidden="true">{step.icon}</div>
+                          <span>{step.title}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="loader-text">{progressStage}</div>
+                    <div className="progress-container">
+                      <div className="progress-bar" style={{ width: `${progress}%` }}></div>
+                    </div>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                      {Math.round(progress)}% Complete — tuning cosmic neural matrix...
+                    </p>
                     </div>
                   </div>
                 </div>

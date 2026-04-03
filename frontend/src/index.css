@@ -824,11 +824,56 @@ body {
   to { transform: rotate(360deg); }
 }
 
+.nebula-stepper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  width: 80%;
+  max-width: 720px;
+  margin: .5rem auto;
+}
+
+.nebula-step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: rgba(196, 210, 235, 0.6);
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: rgba(20, 24, 48, 0.45);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  transition: all 220ms ease;
+}
+
+.nebula-step.active {
+  color: #a7ffce;
+  background: linear-gradient(135deg, rgba(64,255,242,0.28), rgba(108,176,255,0.17));
+  box-shadow: 0 0 18px rgba(130, 241, 255, 0.45);
+  transform: translateY(-2px);
+}
+
+.nebula-step-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 50%;
+  background: rgba(69, 98, 210, 0.3);
+  border: 1px solid rgba(145, 227, 255, 0.4);
+  color: #c9fbff;
+}
+
 .supported-files-hero {
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 0.65rem;
+  margin-bottom: 0.6rem;
+  flex-wrap: wrap;
   margin-bottom: 0.6rem;
   flex-wrap: wrap;
 }
