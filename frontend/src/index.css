@@ -1284,40 +1284,160 @@ body {
   margin: 0 auto;
 }
 
-@media (max-width: 768px) {
-  .nebula-nav {
-    width: 90%;
-    bottom: 1rem;
-    padding: 0.5rem;
-    gap: 0.5rem;
-  }
-  .nav-link {
-    padding: 0.7rem 1rem;
-    flex: 1;
-    justify-content: center;
-  }
-  .nav-text {
-    display: none; /* Hide text on mobile for the dock look */
-  }
-}
-
-/* Tablet Layout Overrides */
 @media (max-width: 1024px) {
   .value-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .code-section {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .download-actions {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .download-actions .icon-button {
+    min-width: 180px;
+  }
+
+  .nebula-card {
+    padding: 2.2rem;
+  }
+
+  .summary-large {
+    font-size: 2rem;
+  }
+
+  .loader-card {
+    padding: 2rem;
+  }
+
+  .progress-container {
+    max-width: 100%;
+  }
+
+  .supported-files-hero {
+    justify-content: center;
+  }
 }
 
-/* Mobile Layout Overrides - Placed at end for cascade precedence */
 @media (max-width: 768px) {
+  .app-shell {
+    padding: 1.5rem 1rem;
+    gap: 2rem;
+    margin-top: 1rem;
+  }
+
+  .hero-tagline {
+    font-size: clamp(1rem, 4vw, 1.6rem);
+  }
+
+  .nebula-header {
+    gap: 1rem;
+    text-align: center;
+    align-items: center;
+    max-width: 100%;
+  }
+
   .value-grid {
     grid-template-columns: 1fr;
     gap: 1.5rem;
   }
 
-  .tech-grid, .code-section {
-    grid-template-columns: 1fr;
-    gap: 2rem;
+  .value-card {
+    padding: 2rem;
+  }
+
+  .download-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .download-actions .icon-button {
+    width: 100%;
+  }
+
+  .code-block {
+    padding: 1.5rem;
+  }
+
+  .code-content {
+    font-size: 0.8rem;
+  }
+
+  .how-it-works-view {
+    padding: 4rem 1rem 8rem;
+  }
+
+  .nebula-nav {
+    width: calc(100% - 2rem);
+    bottom: 0.8rem;
+    padding: 0.65rem;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .nav-link {
+    padding: 0.7rem 1rem;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .nav-text {
+    display: none;
+  }
+
+  .summary-large p {
+    font-size: 1.05rem;
+  }
+
+  .loader-header h2 {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell {
+    padding: 1rem 0.75rem;
+    gap: 1.5rem;
+  }
+
+  .hero-tagline {
+    font-size: 1rem;
+  }
+
+  .singularity-zone {
+    min-height: 260px;
+    border-radius: 28px;
+  }
+
+  .loader-card {
+    padding: 1.5rem;
+  }
+
+  .download-actions .icon-button {
+    font-size: 0.85rem;
+    padding: 0.8rem 1rem;
+  }
+
+  .value-card {
+    padding: 1.5rem;
+  }
+
+  .code-content {
+    font-size: 0.75rem;
+  }
+
+  .nebula-nav {
+    width: calc(100% - 1.5rem);
+    bottom: 0.6rem;
+  }
+
+  .nav-link {
+    padding: 0.55rem 0.8rem;
   }
 }
 
