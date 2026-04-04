@@ -45,9 +45,9 @@ function App() {
   const inputRef = useRef(null);
 
   const nebulaSteps = [
-    { id: 0, icon: '🛰️', title: 'Analyzing' },
-    { id: 1, icon: '✍️', title: 'Summarizing' },
-    { id: 2, icon: '🔍', title: 'Extracting' },
+    { id: 0, title: 'Analyzing document...' },
+    { id: 1, title: 'Extracting entities...' },
+    { id: 2, title: 'Generating summary...' },
   ];
 
   // Aurora Mouse Follow (Parallax)
@@ -132,7 +132,7 @@ function App() {
     setLoading(true);
     setError('');
     setProgress(10);
-    setProgressStage('Analyzing document...');
+    setProgressStage('Initializing neural synth protocols...');
     
     // Simulate progress with stage updates
     const interval = setInterval(() => {
@@ -142,14 +142,7 @@ function App() {
 
         const newStepIndex = newProgress < 35 ? 0 : newProgress < 65 ? 1 : 2;
         setStepIndex(newStepIndex);
-
-        if (newProgress < 35) {
-          setProgressStage('🛰️ Analyzing document');
-        } else if (newProgress < 65) {
-          setProgressStage('✍️ Generating summary');
-        } else {
-          setProgressStage('🔍 Extracting entities');
-        }
+        setProgressStage('Initializing neural synth protocols...');
         
         if (newProgress >= 90) return prev;
         return newProgress;
@@ -357,16 +350,13 @@ function App() {
                     <img src="/logo.png" alt="IntelliDoc Logo" className="singularity-icon" style={{ filter: 'drop-shadow(0 0 10px var(--accent-void))', borderRadius: '50%', objectFit: 'cover' }} />
                   </div>
                   <h2 className="action-text">{dragActive ? "Inject Data" : "Initialize Source"}</h2>
+                  <div className="supported-formats-line">Supported formats:</div>
                   <div className="supported-files-hero">
-                    <div className="nebula-chip">📄 DOCX</div>
-                    <div className="nebula-chip">📕 PDF</div>
-                    <div className="nebula-chip">🖼️ IMAGE</div>
+                    <div className="nebula-chip">PDF</div>
+                    <div className="nebula-chip">DOCX</div>
+                    <div className="nebula-chip">IMAGE</div>
                   </div>
-                  <p className="supported-formats-label">
-                    🚀 <strong>Supported File Formats</strong> — Drop your document into the nebula.
-                    <br />
-                    ☁️ Max file upload: 4MB
-                  </p>
+                  <div className="max-file-size">Max file upload size 4MB</div>
                 </div>
                 <input 
                   ref={inputRef} 
@@ -398,24 +388,28 @@ function App() {
 
               {loading && (
                 <div className="nebula-results">
-                  <div className="nebula-skeleton span-full" style={{ height: 'auto' }}>
-                    <div className="loader-content">
-                      <div className="nebula-arc" />
-                    <div className="nebula-stepper">
-                      {nebulaSteps.map((step) => (
-                        <div key={step.id} className={`nebula-step ${step.id <= stepIndex ? 'active' : ''}`}>
-                          <div className="nebula-step-icon" aria-hidden="true">{step.icon}</div>
-                          <span>{step.title}</span>
-                        </div>
-                      ))}
+                  <div className="nebula-card span-full loader-card">
+                    <div className="loader-header">
+                      <h2>Analyzing document using AI...</h2>
                     </div>
-                    <div className="loader-text">{progressStage}</div>
+                    <div className="loader-stages">
+                      {nebulaSteps.map((step, index) => {
+                        const statusClass = index < stepIndex ? 'completed' : index === stepIndex ? 'active' : '';
+                        const icon = index < stepIndex ? '✓' : index === stepIndex ? '•' : '○';
+                        return (
+                          <div key={step.id} className={`stage-item ${statusClass}`}>
+                            <span className="stage-icon">{icon}</span>
+                            <span>{step.title}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                     <div className="progress-container">
                       <div className="progress-bar" style={{ width: `${progress}%` }}></div>
                     </div>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                      {Math.round(progress)}% Complete — tuning cosmic neural matrix...
-                    </p>
+                    <div className="loader-footer">
+                      <span>{progressStage}</span>
+                      <span>{Math.round(progress)}%</span>
                     </div>
                   </div>
                 </div>
