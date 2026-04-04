@@ -409,6 +409,51 @@ body {
   transition: all 0.4s;
 }
 
+.supported-files-hero {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+
+.format-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.9rem 1.2rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  min-width: 110px;
+}
+
+.chip-icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  background: rgba(255,255,255,0.1);
+  border-radius: 50%;
+}
+
+.chip-icon svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.pdf-icon svg {
+  color: #e02f2f;
+}
+
+.docx-icon svg {
+  color: #1e6af7;
+}
+
+.image-icon svg {
+  color: #2ec44b;
+}
+
 .prism-chip:hover {
   background: var(--accent-ghost);
   transform: rotate(-2deg) scale(1.1);

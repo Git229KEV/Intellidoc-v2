@@ -352,9 +352,39 @@ function App() {
                   <h2 className="action-text">{dragActive ? "Inject Data" : "Initialize Source"}</h2>
                   <div className="supported-formats-line">Supported formats:</div>
                   <div className="supported-files-hero">
-                    <div className="nebula-chip">PDF</div>
-                    <div className="nebula-chip">DOCX</div>
-                    <div className="nebula-chip">IMAGE</div>
+                    <div className="nebula-chip format-chip">
+                      <span className="chip-icon pdf-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M6 2h9l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" />
+                          <path d="M15 2v5h5" />
+                          <path d="M8 14h4" />
+                          <path d="M8 18h4" />
+                          <path d="M8 10h4" />
+                        </svg>
+                      </span>
+                      <span>PDF</span>
+                    </div>
+                    <div className="nebula-chip format-chip">
+                      <span className="chip-icon docx-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M6 2h9l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" />
+                          <path d="M15 2v5h5" />
+                          <path d="M8 17v-6l2 4 2-4v6" />
+                          <path d="M18 17h-2v-6" />
+                        </svg>
+                      </span>
+                      <span>DOCX</span>
+                    </div>
+                    <div className="nebula-chip format-chip">
+                      <span className="chip-icon image-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="4" width="18" height="16" rx="2" />
+                          <circle cx="8.5" cy="8.5" r="1.5" />
+                          <path d="M21 15l-5-5-4 4-3-3-4 4" />
+                        </svg>
+                      </span>
+                      <span>IMAGE</span>
+                    </div>
                   </div>
                   <div className="max-file-size">Max file upload size 4MB</div>
                 </div>
