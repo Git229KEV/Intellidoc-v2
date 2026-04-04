@@ -445,20 +445,7 @@ function App() {
                       </div>
                     )}
                     <div className="summary-large" style={{ marginTop: '2rem' }}>
-                      <h2>Document Summary</h2>
                       <p>{result.summary}</p>
-                    </div>
-                    <div className="detailed-summary" style={{ marginTop: '1.5rem', border: '1px dashed rgba(161, 255, 233, 0.3)', borderRadius: '14px', padding: '1rem', background: 'rgba(25, 32, 57, 0.25)' }}>
-                      <h4 style={{ marginBottom: '0.65rem', color: 'var(--accent-ghost)' }}>Detailed Extraction</h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.9rem' }}>
-                        <div><strong>Names</strong><br />{result.entities?.names?.length > 0 ? result.entities.names.join(', ') : '—'}</div>
-                        <div><strong>Dates</strong><br />{result.entities?.dates?.length > 0 ? result.entities.dates.join(', ') : '—'}</div>
-                        <div><strong>Organizations</strong><br />{result.entities?.organizations?.length > 0 ? result.entities.organizations.join(', ') : '—'}</div>
-                        <div><strong>Amounts</strong><br />{result.entities?.amounts?.length > 0 ? result.entities.amounts.join(', ') : '—'}</div>
-                        <div><strong>Identifiers</strong><br />{result.entities?.unique_identifiers?.length > 0 ? result.entities.unique_identifiers.join(', ') : '—'}</div>
-                        <div><strong>Contacts</strong><br />{result.entities?.contact_details?.length > 0 ? result.entities.contact_details.join(', ') : '—'}</div>
-                        <div style={{ gridColumn: '1 / -1' }}><strong>Key Insight</strong><br />{result.summary}</div>
-                      </div>
                     </div>
                   </div>
 
