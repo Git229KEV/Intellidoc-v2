@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { supabase } from './supabaseClient';
+import jsPDF from 'jspdf';
 import './index.css';const highlightText = (text, entities) => {
   if (!text) return '';
   let highlighted = text;
@@ -46,7 +47,14 @@ function App() {
   const [dashboardFiles, setDashboardFiles] = useState([]);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardTab, setDashboardTab] = useState('uploaded'); // 'uploaded' or 'results'
+  // In-page modal state
+  const [modal, setModal] = useState({ visible: false, type: 'info', title: '', message: '', onConfirm: null });
   const inputRef = useRef(null);
+
+  const showModal = (type, title, message, onConfirm = null) => {
+    setModal({ visible: true, type, title, message, onConfirm });
+  };
+  const closeModal = () => setModal(m => ({ ...m, visible: false, onConfirm: null }));
 
   const nebulaSteps = [
     { id: 0, title: 'Analyzing document...' },
@@ -86,7 +94,7 @@ function App() {
       
     if (error) {
       console.error("Error fetching dashboard files", error);
-      alert("Failed to fetch files from Cloud Storage! Please ensure your bucket has a SELECT policy enabling read access for authenticated users.");
+      showModal('error', 'Cloud Storage Error', 'Failed to fetch files. Please ensure your bucket has a SELECT policy for authenticated users.');
     } else {
       setDashboardFiles(data || []);
     }
@@ -104,34 +112,121 @@ function App() {
       const targetBucket = dashboardTab === 'uploaded' ? 'documents' : 'analysis-results';
       const { data, error } = await supabase.storage
         .from(targetBucket)
-        .createSignedUrl(`${user.id}/${fileName}`, 3600); // Valid for 1 hour
+        .createSignedUrl(`${user.id}/${fileName}`, 3600);
         
       if (error) throw error;
-      
       window.open(data.signedUrl, '_blank');
     } catch (err) {
       console.error(err);
-      alert("Failed to securely open file: " + err.message);
+      showModal('error', 'Access Failed', 'Failed to securely open file: ' + err.message);
     }
   };
 
-  const handleDeleteFile = async (fileName) => {
+  const handleDeleteFile = (fileName) => {
     const targetBucket = dashboardTab === 'uploaded' ? 'documents' : 'analysis-results';
-    
-    if (!window.confirm(`Are you sure you want to delete this file from ${targetBucket}?`)) return;
-    
+    showModal('confirm', 'Confirm Deletion', `Are you sure you want to permanently delete "${fileName.split('_').slice(1).join('_') || fileName}" from ${targetBucket}?`, async () => {
+      try {
+        const { error } = await supabase.storage
+          .from(targetBucket)
+          .remove([`${user.id}/${fileName}`]);
+          
+        if (error) throw error;
+        closeModal();
+        fetchDashboardFiles();
+      } catch (err) {
+        console.error(err);
+        showModal('error', 'Delete Failed', 'Could not delete file. Ensure you have DELETE policies configured on your Supabase bucket.');
+      }
+    });
+  };
+
+  const generateAndUploadAnalysisPDF = async (analysisResult, originalFileName) => {
+    if (!user || !analysisResult) return;
     try {
-      const { error } = await supabase.storage
-        .from(targetBucket)
-        .remove([`${user.id}/${fileName}`]);
-        
-      if (error) throw error;
-      
-      // Refresh list
-      fetchDashboardFiles();
+      const doc = new jsPDF();
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 14;
+      const maxW = pageW - margin * 2;
+      let y = 20;
+
+      // Header
+      doc.setFillColor(10, 10, 30);
+      doc.rect(0, 0, pageW, 30, 'F');
+      doc.setTextColor(0, 230, 118);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('IntelliDoc — Analysis Report', margin, y);
+      y += 12;
+
+      doc.setTextColor(100, 100, 120);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`File: ${originalFileName}  |  Generated: ${new Date().toLocaleString()}`, margin, y);
+      y += 12;
+
+      // Summary
+      if (analysisResult.summary) {
+        doc.setTextColor(30, 30, 30);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Summary', margin, y); y += 7;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        const summaryLines = doc.splitTextToSize(analysisResult.summary, maxW);
+        summaryLines.forEach(line => {
+          if (y > 270) { doc.addPage(); y = 20; }
+          doc.text(line, margin, y); y += 6;
+        });
+        y += 4;
+      }
+
+      // Entities
+      const entities = analysisResult.entities || {};
+      const entityGroups = [
+        { label: 'Names', items: entities.names },
+        { label: 'Organizations', items: entities.organizations },
+        { label: 'Dates', items: entities.dates },
+        { label: 'Amounts', items: entities.amounts },
+      ];
+      entityGroups.forEach(({ label, items }) => {
+        if (items && items.length > 0) {
+          if (y > 270) { doc.addPage(); y = 20; }
+          doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+          doc.text(label, margin, y); y += 7;
+          doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+          const txt = items.join(', ');
+          const lines = doc.splitTextToSize(txt, maxW);
+          lines.forEach(line => { if (y > 270) { doc.addPage(); y = 20; } doc.text(line, margin, y); y += 6; });
+          y += 4;
+        }
+      });
+
+      // Key facts
+      if (analysisResult.key_facts && analysisResult.key_facts.length > 0) {
+        if (y > 270) { doc.addPage(); y = 20; }
+        doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+        doc.text('Key Facts', margin, y); y += 7;
+        doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+        analysisResult.key_facts.forEach(fact => {
+          if (y > 270) { doc.addPage(); y = 20; }
+          const lines = doc.splitTextToSize(`• ${fact}`, maxW);
+          lines.forEach(line => { doc.text(line, margin, y); y += 6; });
+        });
+      }
+
+      const pdfBlob = doc.output('blob');
+      const timestamp = new Date().getTime();
+      const pdfName = `${timestamp}_analysis_${originalFileName}.pdf`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from('analysis-results')
+        .upload(`${user.id}/${pdfName}`, pdfBlob, { contentType: 'application/pdf' });
+
+      if (uploadErr) throw uploadErr;
+      showModal('success', 'Analysis Saved!', `Analysis PDF has been saved to your cloud archive as "${pdfName}".`);
     } catch (err) {
-      console.error(err);
-      alert("Failed to delete file! Ensure you have DELETE policies configured on your bucket.");
+      console.error('PDF generation/upload error:', err);
+      showModal('error', 'PDF Upload Failed', 'Could not save analysis PDF: ' + err.message);
     }
   };
 
@@ -218,7 +313,7 @@ function App() {
           
         if (error) {
           console.error("Supabase Upload Error:", error);
-          alert(`Failed to auto-upload to Supabase! Reason: ${error.message}. (Did you set up Storage Policies/RLS?)`);
+          showModal('error', 'Upload Failed', `Failed to auto-upload to Supabase! Reason: ${error.message}. Did you set up Storage Policies/RLS?`);
         } else {
           console.log("File auto-uploaded to Supabase successfully.");
         }
@@ -386,7 +481,7 @@ function App() {
 
   const copyToClipboard = (text, message = "Intelligence copied to local buffer.") => {
     navigator.clipboard.writeText(text);
-    alert(message);
+    showModal('success', 'Copied!', message);
   };
 
   if (authLoading) {
@@ -397,6 +492,45 @@ function App() {
     <>
       <div className="custom-cursor" style={{ left: `${mousePos.x}px`, top: `${mousePos.y}px` }}></div>
       <div className="custom-cursor-follower" style={{ left: `${mousePos.x}px`, top: `${mousePos.y}px` }}></div>
+
+      {/* In-Page Modal */}
+      {modal.visible && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)',
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
+        }} onClick={modal.type !== 'confirm' ? closeModal : undefined}>
+          <div style={{
+            background: 'rgba(15,15,35,0.98)', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '16px', padding: '2rem 2.5rem', maxWidth: '420px', width: '90%',
+            boxShadow: modal.type === 'error' ? '0 0 40px rgba(255,50,50,0.2)' :
+                       modal.type === 'success' ? '0 0 40px rgba(0,230,118,0.2)' :
+                       '0 0 40px rgba(0,150,255,0.15)',
+            borderColor: modal.type === 'error' ? 'rgba(255,50,50,0.3)' :
+                         modal.type === 'success' ? 'rgba(0,230,118,0.3)' :
+                         'rgba(0,150,255,0.3)',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{
+              fontSize: '1.5rem', marginBottom: '0.5rem',
+              color: modal.type === 'error' ? '#ff4444' : modal.type === 'success' ? 'var(--accent-neon)' : '#4da6ff'
+            }}>
+              {modal.type === 'error' ? '⚠' : modal.type === 'success' ? '✓' : '◈'}
+            </div>
+            <h3 style={{ marginBottom: '0.75rem', fontSize: '1.1rem' }}>{modal.title}</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem', lineHeight: 1.6 }}>{modal.message}</p>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              {modal.type === 'confirm' && (
+                <button className="icon-button" style={{ borderColor: 'rgba(255,50,50,0.4)', color: 'rgba(255,80,80,0.9)' }} onClick={modal.onConfirm}>
+                  Confirm Delete
+                </button>
+              )}
+              <button className="void-button" style={{ fontSize: '0.85rem', padding: '0.5rem 1.25rem' }} onClick={closeModal}>
+                {modal.type === 'confirm' ? 'Cancel' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Fixed aurora background — sits behind everything, never scrolls */}
       <div className="aurora-bg">
@@ -502,8 +636,18 @@ function App() {
                           </button>
                           
                           {dashboardTab === 'uploaded' && (
-                            <button className="icon-button" style={{ width: '100%', fontSize: '0.8rem', justifyContent: 'center' }} onClick={() => setActivePage('analyzer')}>
-                              VIEW ANALYSIS
+                            <button 
+                              className="icon-button" 
+                              style={{ width: '100%', fontSize: '0.8rem', justifyContent: 'center' }} 
+                              onClick={() => {
+                                if (result && file) {
+                                  generateAndUploadAnalysisPDF(result, file.name);
+                                } else {
+                                  setActivePage('analyzer');
+                                }
+                              }}
+                            >
+                              {result ? 'SAVE ANALYSIS AS PDF' : 'GO TO ANALYZER'}
                             </button>
                           )}
                           
