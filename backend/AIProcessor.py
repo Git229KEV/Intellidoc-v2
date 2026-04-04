@@ -17,7 +17,7 @@ class EntitiesSchema(BaseModel):
     contact_details: list[str] = Field(default_factory=list, description="Extracted phone numbers, email addresses, etc.")
 
 class AnalysisSchema(BaseModel):
-    summary: str = Field(default="", description="A concise and accurate summary of the document content (max 2 sentences)")
+    summary: str = Field(default="", description="A detailed paragraph summary of the document content, ideally 6-7 lines long.")
     entities: EntitiesSchema = Field(default_factory=EntitiesSchema)
     sentiment: str = Field(default="Neutral", description="The overall sentiment of the content. Must be Positive, Negative, or Neutral")
     confidence_score: float = Field(default=0.0, description="Confidence score for the extraction (0.0 to 1.0)")
@@ -145,7 +145,7 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
         2. UNIQUE IDENTIFIERS: Extract EVERY ID, Invoice Number, Receipt ID, etc.
         3. LOCATIONS & CONTACTS: Extract full addresses, phone numbers, and emails
         4. SENTIMENT: Determine if the document tone is Positive, Negative, or Neutral
-        5. SUMMARY: 1-2 sentence high-level synthesis of what this document is
+        5. SUMMARY: Provide a detailed paragraph summary of the document, approximately 6-7 lines long.
 
         Return result in STRICT JSON format:
         {

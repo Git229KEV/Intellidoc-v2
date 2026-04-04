@@ -297,8 +297,15 @@ body {
 .summary-large {
   font-family: 'Bricolage Grotesque', sans-serif;
   font-size: 2.5rem;
-  line-height: 1.1;
+  line-height: 1.4;
   letter-spacing: -0.03em;
+}
+
+.summary-large p {
+  white-space: pre-line;
+  font-size: 1.2rem;
+  line-height: 1.8;
+  margin: 0;
 }
 
 /* Specific Card Spans */
