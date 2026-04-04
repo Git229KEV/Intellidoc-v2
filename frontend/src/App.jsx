@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import './index.css';
-
-const highlightText = (text, entities) => {
+import { supabase } from './supabaseClient';
+import './index.css';const highlightText = (text, entities) => {
   if (!text) return '';
   let highlighted = text;
   
@@ -42,6 +41,11 @@ function App() {
   const [activePage, setActivePage] = useState('analyzer');
   const [progressStage, setProgressStage] = useState('');
   const [stepIndex, setStepIndex] = useState(0);
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [dashboardFiles, setDashboardFiles] = useState([]);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardTab, setDashboardTab] = useState('uploaded'); // 'uploaded' or 'results'
   const inputRef = useRef(null);
 
   const nebulaSteps = [
@@ -54,6 +58,84 @@ function App() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchDashboardFiles = async () => {
+    if (!user) return;
+    setDashboardLoading(true);
+    
+    const targetBucket = dashboardTab === 'uploaded' ? 'documents' : 'analysis-results';
+    
+    const { data, error } = await supabase.storage
+      .from(targetBucket)
+      .list(user.id, {
+        limit: 100,
+        offset: 0,
+        sortBy: { column: 'created_at', order: 'desc' },
+      });
+      
+    if (error) {
+      console.error("Error fetching dashboard files", error);
+      alert("Failed to fetch files from Cloud Storage! Please ensure your bucket has a SELECT policy enabling read access for authenticated users.");
+    } else {
+      setDashboardFiles(data || []);
+    }
+    setDashboardLoading(false);
+  };
+
+  useEffect(() => {
+    if (activePage === 'dashboard') {
+      fetchDashboardFiles();
+    }
+  }, [activePage, dashboardTab, user]);
+
+  const handleAccessFile = async (fileName) => {
+    try {
+      const targetBucket = dashboardTab === 'uploaded' ? 'documents' : 'analysis-results';
+      const { data, error } = await supabase.storage
+        .from(targetBucket)
+        .createSignedUrl(`${user.id}/${fileName}`, 3600); // Valid for 1 hour
+        
+      if (error) throw error;
+      
+      window.open(data.signedUrl, '_blank');
+    } catch (err) {
+      console.error(err);
+      alert("Failed to securely open file: " + err.message);
+    }
+  };
+
+  const handleDeleteFile = async (fileName) => {
+    const targetBucket = dashboardTab === 'uploaded' ? 'documents' : 'analysis-results';
+    
+    if (!window.confirm(`Are you sure you want to delete this file from ${targetBucket}?`)) return;
+    
+    try {
+      const { error } = await supabase.storage
+        .from(targetBucket)
+        .remove([`${user.id}/${fileName}`]);
+        
+      if (error) throw error;
+      
+      // Refresh list
+      fetchDashboardFiles();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete file! Ensure you have DELETE policies configured on your bucket.");
+    }
+  };
+
+  useEffect(() => {
     const handleMouseMove = (e) => {
       setMousePos({ x: e.clientX, y: e.clientY });
       
@@ -64,6 +146,19 @@ function App() {
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
+
+  const signInWithGoogle = async () => {
+    try {
+      await supabase.auth.signInWithOAuth({ provider: 'google' });
+    } catch (err) {
+      console.error(err);
+      setError('Failed to authenticate');
+    }
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+  };
 
   const handleDrag = function(e) {
     e.preventDefault();
@@ -95,7 +190,7 @@ function App() {
     inputRef.current.click();
   };
 
-  const handleFileSelected = (selectedFile) => {
+  const handleFileSelected = async (selectedFile) => {
     setError('');
     setResult(null);
     const validTypes = [
@@ -111,6 +206,26 @@ function App() {
     }
     
     setFile(selectedFile);
+
+    // Auto-upload the source document immediately
+    if (user) {
+      try {
+        const timestamp = new Date().getTime();
+        const basePath = `${user.id}`;
+        const { data, error } = await supabase.storage
+          .from('documents')
+          .upload(`${basePath}/${timestamp}_${selectedFile.name}`, selectedFile);
+          
+        if (error) {
+          console.error("Supabase Upload Error:", error);
+          alert(`Failed to auto-upload to Supabase! Reason: ${error.message}. (Did you set up Storage Policies/RLS?)`);
+        } else {
+          console.log("File auto-uploaded to Supabase successfully.");
+        }
+      } catch (err) {
+        console.error("Auto-upload exception", err);
+      }
+    }
   };
 
   const getBase64 = (file) => {
@@ -274,6 +389,10 @@ function App() {
     alert(message);
   };
 
+  if (authLoading) {
+    return <div style={{height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'var(--accent-neon)'}}>Initializing Neural Auth...</div>;
+  }
+
   return (
     <>
       <div className="custom-cursor" style={{ left: `${mousePos.x}px`, top: `${mousePos.y}px` }}></div>
@@ -289,14 +408,116 @@ function App() {
       {/* Scrollable app shell */}
       <div className={`nebula-container ${hoverActive ? 'cursor-hover' : ''}`}>
         <div className="app-shell">
-          <header className="nebula-header" style={{ marginBottom: '2rem' }}>
+          <header className="nebula-header" style={{ marginBottom: '2rem', position: 'relative' }}>
             <div className="neon-slug">Neural Intel System v2.1</div>
             <h1 className="nebula-title">
               <span>IntelliDoc</span>
             </h1>
+            {user && (
+              <button className="void-button" onClick={handleSignOut} style={{ position: 'absolute', right: '0', top: '50%', transform: 'translateY(-50%)', fontSize: '0.8rem', padding: '0.5rem 1rem' }}>Sign Out</button>
+            )}
           </header>
 
-          {activePage === 'analyzer' ? (
+          {!user ? (
+            <div className="login-portal" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '10vh' }}>
+              <div className="nebula-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
+                <h2 style={{ marginBottom: '1rem', color: 'var(--accent-neon)' }}>Neural Identity Required</h2>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Authorize access to the Nebula dashboard to initialize scanning protocols.</p>
+                <button className="void-button" onClick={signInWithGoogle} style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', fontSize: '1rem' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22.56 12.25C22.56 11.47 22.49 10.73 22.36 10H12V14.26H17.92C17.66 15.63 16.88 16.78 15.72 17.56V20.35H19.28C21.36 18.43 22.56 15.6 22.56 12.25Z" fill="#4285F4"/>
+                    <path d="M12 23C14.97 23 17.46 22.02 19.28 20.35L15.72 17.56C14.73 18.22 13.48 18.63 12 18.63C9.13 18.63 6.7 16.69 5.82 14.12H2.17V16.94C3.99 20.53 7.7 23 12 23Z" fill="#34A853"/>
+                    <path d="M5.82 14.12C5.59 13.45 5.46 12.74 5.46 12C5.46 11.26 5.59 10.55 5.82 9.88V7.06H2.17C1.43 8.55 1 10.22 1 12C1 13.78 1.43 15.45 2.17 16.94L5.82 14.12Z" fill="#FBBC05"/>
+                    <path d="M12 5.38C13.62 5.38 15.06 5.93 16.2 7.02L19.35 3.87C17.46 2.11 14.97 1 12 1C7.7 1 3.99 3.47 2.17 7.06L5.82 9.88C6.7 7.31 9.13 5.38 12 5.38Z" fill="#EA4335"/>
+                  </svg>
+                  Connect with Google Identity
+                </button>
+              </div>
+            </div>
+          ) : activePage === 'dashboard' ? (
+            <section className="dashboard-section" style={{ padding: '2rem 0' }}>
+              <div className="tech-header" style={{ marginBottom: '2rem' }}>
+                <div className="real-time-badge">Cloud Storage</div>
+                <h2>Neural Data Archives</h2>
+                <p>All previously initialized sources synchronized with the Nebula network.</p>
+              </div>
+
+              {/* Navigation Tabs */}
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+                <button 
+                  style={{
+                    padding: '0.5rem 1.2rem',
+                    borderRadius: '8px',
+                    border: dashboardTab === 'uploaded' ? '1px solid var(--accent-neon)' : '1px solid rgba(255,255,255,0.15)',
+                    background: dashboardTab === 'uploaded' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.04)',
+                    color: dashboardTab === 'uploaded' ? 'var(--accent-neon)' : 'rgba(255,255,255,0.45)',
+                    cursor: 'pointer',
+                    fontWeight: dashboardTab === 'uploaded' ? 700 : 400,
+                    letterSpacing: '0.05em',
+                    fontSize: '0.85rem',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onClick={() => setDashboardTab('uploaded')}
+                >
+                  Uploaded Files
+                </button>
+                <button 
+                  style={{
+                    padding: '0.5rem 1.2rem',
+                    borderRadius: '8px',
+                    border: dashboardTab === 'results' ? '1px solid var(--accent-neon)' : '1px solid rgba(255,255,255,0.15)',
+                    background: dashboardTab === 'results' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.04)',
+                    color: dashboardTab === 'results' ? 'var(--accent-neon)' : 'rgba(255,255,255,0.45)',
+                    cursor: 'pointer',
+                    fontWeight: dashboardTab === 'results' ? 700 : 400,
+                    letterSpacing: '0.05em',
+                    fontSize: '0.85rem',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onClick={() => setDashboardTab('results')}
+                >
+                  Document Analysis Results
+                </button>
+              </div>
+
+              {dashboardLoading ? (
+                <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--accent-neon)' }}>Querying network...</div>
+              ) : dashboardFiles.length === 0 ? (
+                <div className="nebula-card" style={{ textAlign: 'center', opacity: 0.6 }}>
+                  <p>No localized data fragments found.</p>
+                </div>
+              ) : (
+                <div className="value-grid">
+                  {dashboardFiles.map((f, i) => {
+                    // Supabase list can return the ".emptyFolderPlaceholder" if folder is empty.
+                    if (f.name === ".emptyFolderPlaceholder") return null;
+                    return (
+                      <div key={i} className="nebula-card span-small" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div style={{ wordBreak: 'break-all', fontWeight: 600 }}>{f.name.split('_').slice(1).join('_') || f.name}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Created: {new Date(f.created_at).toLocaleString()}</div>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: 'auto' }}>
+                          <button className="void-button" style={{ width: '100%', fontSize: '0.8rem' }} onClick={() => handleAccessFile(f.name)}>
+                            {dashboardTab === 'uploaded' ? "ACCESS DATA" : "ACCESS RESULT"}
+                          </button>
+                          
+                          {dashboardTab === 'uploaded' && (
+                            <button className="icon-button" style={{ width: '100%', fontSize: '0.8rem', justifyContent: 'center' }} onClick={() => setActivePage('analyzer')}>
+                              VIEW ANALYSIS
+                            </button>
+                          )}
+                          
+                          <button className="icon-button" style={{ width: '100%', fontSize: '0.8rem', justifyContent: 'center', borderColor: 'rgba(255, 50, 50, 0.4)', color: 'rgba(255, 50, 50, 0.8)' }} onClick={() => handleDeleteFile(f.name)}>
+                            DELETE
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          ) : activePage === 'analyzer' ? (
             <>
               <section className="hero-section">
                 <p className="hero-tagline">
@@ -628,6 +849,10 @@ function App() {
           <div className={`nav-link ${activePage === 'analyzer' ? 'active' : ''}`} onClick={() => setActivePage('analyzer')}>
             <span className="nav-icon">⬡</span>
             <span className="nav-text">Portal</span>
+          </div>
+          <div className={`nav-link ${activePage === 'dashboard' ? 'active' : ''}`} onClick={() => setActivePage('dashboard')}>
+            <span className="nav-icon">◱</span>
+            <span className="nav-text">Dashboard</span>
           </div>
           <div className={`nav-link ${activePage === 'docs' ? 'active' : ''}`} onClick={() => setActivePage('docs')}>
             <span className="nav-icon">⌬</span>
