@@ -84,6 +84,7 @@ function App() {
     
     const targetBucket = dashboardTab === 'uploaded' ? 'documents' : 'analysis-results';
     
+    // List files under the user's own folder
     const { data, error } = await supabase.storage
       .from(targetBucket)
       .list(user.id, {
@@ -95,8 +96,26 @@ function App() {
     if (error) {
       console.error("Error fetching dashboard files", error);
       showModal('error', 'Cloud Storage Error', 'Failed to fetch files. Please ensure your bucket has a SELECT policy for authenticated users.');
+      setDashboardLoading(false);
+      return;
+    }
+
+    // Filter out placeholder entries from Supabase
+    const validFiles = (data || []).filter(f => f.name !== '.emptyFolderPlaceholder');
+
+    // For analysis-results, also try listing from root if user folder is empty (handles legacy uploads)
+    if (dashboardTab === 'results' && validFiles.length === 0) {
+      const { data: rootData } = await supabase.storage
+        .from('analysis-results')
+        .list('', {
+          limit: 100,
+          offset: 0,
+          sortBy: { column: 'created_at', order: 'desc' },
+        });
+      const rootFiles = (rootData || []).filter(f => f.name !== '.emptyFolderPlaceholder' && !f.id?.endsWith('/'));
+      setDashboardFiles(rootFiles);
     } else {
-      setDashboardFiles(data || []);
+      setDashboardFiles(validFiles);
     }
     setDashboardLoading(false);
   };
@@ -617,13 +636,34 @@ function App() {
               {dashboardLoading ? (
                 <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--accent-neon)' }}>Querying network...</div>
               ) : dashboardFiles.length === 0 ? (
-                <div className="nebula-card" style={{ textAlign: 'center', opacity: 0.6 }}>
-                  <p>No localized data fragments found.</p>
+                <div style={
+                  {
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    padding: '4rem 2rem', gap: '1rem',
+                    border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '16px',
+                    background: 'rgba(255,255,255,0.02)',
+                  }
+                }>
+                  <div style={{ fontSize: '2.5rem', opacity: 0.3 }}>
+                    {dashboardTab === 'uploaded' ? '📂' : '📊'}
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: '1rem', opacity: 0.6 }}>
+                    {dashboardTab === 'uploaded' ? 'No Uploaded Files' : 'No Analysis Results'}
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '280px', lineHeight: 1.6 }}>
+                    {dashboardTab === 'uploaded'
+                      ? 'Upload a document from the Portal to see it listed here.'
+                      : 'Run an analysis and click "SAVE ANALYSIS AS PDF" to archive results here.'}
+                  </div>
+                  {dashboardTab === 'uploaded' && (
+                    <button className="void-button" style={{ marginTop: '0.5rem', fontSize: '0.85rem', padding: '0.5rem 1.5rem' }} onClick={() => setActivePage('analyzer')}>
+                      Go to Portal
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="value-grid">
                   {dashboardFiles.map((f, i) => {
-                    // Supabase list can return the ".emptyFolderPlaceholder" if folder is empty.
                     if (f.name === ".emptyFolderPlaceholder") return null;
                     return (
                       <div key={i} className="nebula-card span-small" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
