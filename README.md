@@ -1,19 +1,43 @@
-﻿# Intelligent Document Processor API
+# Intelligent Document Analyzer — IntelliDoc
 
 ## Description
-This repository implements an Intelligent Document Processor built with FastAPI. It accepts uploaded documents (PDF, DOCX, and image files), extracts text, identifies entities, summarizes content, and returns structured intelligence.
+IntelliDoc is a full-stack Intelligent Document Processor built with **FastAPI** (backend) and **React** (frontend). It accepts uploaded documents (PDF, DOCX, and image files), extracts text, identifies entities, summarizes content, and returns structured AI intelligence. The platform now includes user authentication and a personal file dashboard powered by **Supabase**.
 
-## API Endpoint
-- POST `https://intellidoc-v2.vercel.app/api/document-analyze`
+---
+
+## 🆕 Recent Updates
+
+### Supabase Integration (April 2026)
+
+- **Google Authentication** — Users can now sign in via Google OAuth through Supabase Auth. Authentication state is persisted across sessions and managed globally via a React context (`AuthContext`).
+- **File Storage** — Uploaded documents and document analysis result PDFs are stored in Supabase Storage buckets (`documents` and `analysis-results`). Files are scoped per user to ensure privacy.
+- **Dashboard Page** — A new `/dashboard` route has been added to the frontend. Authenticated users can:
+  - View all their **uploaded files** under the *Uploaded Files* tab.
+  - View and download **document analysis results** (as PDFs) under the *Document Analysis Results* tab.
+  - **Delete** individual files using an inline confirmation modal (no browser alerts).
+  - See consistent empty-state feedback when no files are present in either tab.
+- **Routing** — `react-router-dom` has been added to handle SPA navigation between the landing/analyzer page and the Dashboard. A `vercel.json` catch-all rewrite rule ensures deep links work correctly on Vercel.
+
+---
+
+## Live Demo
+
+- **Frontend**: [https://intellidoc-v2.vercel.app](https://intellidoc-v2.vercel.app)
+- **API Endpoint**: `POST https://intellidoc-v2.vercel.app/api/document-analyze`
+
+---
 
 ## Setup Instructions
 
 ### Prerequisites
-1. **Python 3.10+** installed on your machine.
-2. **Tesseract-OCR** installed and available in your system PATH.
-3. Optional: a virtual environment for isolation.
+1. **Python 3.10+**
+2. **Node.js 18+** and **npm**
+3. **Tesseract-OCR** installed and available in your system PATH (optional, for local OCR fallback)
+4. A **Supabase** project with:
+   - Google OAuth provider enabled
+   - Two storage buckets created: `documents` and `analysis-results`
 
-### Install Dependencies
+### Backend — Install Dependencies
 ```bash
 python -m venv venv
 # Windows:
@@ -23,92 +47,118 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+### Frontend — Install Dependencies
+```bash
+cd frontend
+npm install
+```
+
 ### Environment Variables
-Copy the example environment file and configure your keys:
+
+**Backend** — Copy and edit `.env.example`:
 ```bash
 copy .env.example .env
 ```
-Edit `.env` and set:
+Configure:
 - `GEMINI_API_KEY` — Google Gemini API key
 - `GROQ_API_KEY` — Groq API key (optional fallback)
 - `OPENROUTER_API_KEY` — OpenRouter API key (optional fallback)
 - `HUGGINGFACE_API_KEY` — Hugging Face API key (optional fallback)
-- `API_KEY` — custom API key used by the frontend or clients
+- `API_KEY` — Custom API key used by the frontend or clients
+
+**Frontend** — Edit `frontend/.env`:
+```env
+VITE_SUPABASE_URL=https://<your-project-id>.supabase.co
+VITE_SUPABASE_ANON_KEY=<your-anon-key>
+```
 
 ### Run Locally
 ```bash
+# Backend
 uvicorn backend.main:app --reload
+
+# Frontend (in a separate terminal)
+cd frontend
+npm run dev
 ```
-The local server will be available at `http://127.0.0.1:8000`.
+- Backend: `http://127.0.0.1:8000`
+- Frontend: `http://localhost:5173`
+
+---
 
 ## Architecture Overview
 
-The project is structured as a FastAPI backend with a document parsing layer and an AI provider fallback pipeline.
+```
+Intelli-Doc Final/
+├── backend/
+│   ├── main.py             # FastAPI app & /api/document-analyze endpoint
+│   ├── DocumentParser.py   # Text extraction (PDF, DOCX, Image)
+│   └── AIProcessor.py      # Multi-provider AI analysis pipeline
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx             # Root component with react-router-dom routes
+│   │   ├── supabaseClient.js   # Supabase client initialization
+│   │   ├── AuthContext.jsx     # Global auth state (Google OAuth)
+│   │   ├── Dashboard.jsx       # User dashboard (files & analysis results)
+│   │   └── ...
+│   └── .env                # Frontend environment variables
+└── vercel.json             # Vercel SPA rewrite config
+```
 
-- `backend/main.py` defines the FastAPI application and the `/api/document-analyze` endpoint.
-- `backend/DocumentParser.py` extracts raw text from supported files:
-  - PDF → `pdfplumber`
-  - DOCX → `python-docx`
-  - Images → `Pillow` + `pytesseract`
-- `backend/AIProcessor.py` performs the document analysis and manages multiple AI providers for fallback processing.
-- The deployed API is served on Vercel as a FastAPI serverless function.
+---
 
 ## Tech Stack
 
-- **Backend**: Python, FastAPI, Uvicorn
-- **Deployment**: Vercel serverless functions
-- **Document parsing**:
-  - `pdfplumber`
-  - `python-docx`
-  - `Pillow`
-  - `pytesseract`
-- **AI/ML**:
-  - `google-genai`
-- **Environment management**:
-  - `python` venv
+| Layer | Technology |
+|---|---|
+| **Backend** | Python, FastAPI, Uvicorn |
+| **Frontend** | React (Vite), react-router-dom |
+| **Auth & Storage** | Supabase (Google OAuth, Storage Buckets) |
+| **Deployment** | Vercel (serverless functions + static frontend) |
+| **Document Parsing** | pdfplumber, python-docx, Pillow, pytesseract |
+| **AI Providers** | Google Gemini, Groq, OpenRouter, Hugging Face |
+
+---
 
 ## AI Tools Used
-
-This project uses a multi-provider AI pipeline with fallback support.
 
 ### Google Gemini
 - Package: `google-genai`
 - Model: `gemini-2.5-flash`
-- Purpose: primary document analysis for text and supported image payloads.
-- Role: first-choice provider for documents and images; returns structured JSON fields such as `summary`, `entities`, `sentiment`, and `confidence_score`.
+- Role: Primary provider — structured JSON analysis (summary, entities, sentiment, confidence score) for text and images.
 
 ### Groq Vision
 - Package: `openai`
 - Model: `meta-llama/llama-4-scout-17b-16e-instruct`
-- Purpose: vision-capable AI used for image document analysis and text extraction when Gemini is unavailable or less reliable.
-- Role: used as a secondary provider for images and as a fallback for text analysis.
+- Role: Secondary provider — vision-capable fallback for image documents.
 
 ### OpenRouter
 - Package: `openai`
 - Model: `meta-llama/llama-3.1-8b-instruct`
-- Purpose: fallback provider for document analysis when Gemini or Groq fail due to network issues or high load.
-- Role: supports text analysis and limited vision-style image fallback behavior.
+- Role: Third-tier fallback for text and limited image analysis.
 
 ### Hugging Face Inference
 - Package: `requests`
-- Model endpoint: `https://api-inference.huggingface.co/models/meta-llama/Llama-3.1-8B-Instruct`
-- Purpose: final fallback provider for text-based document analysis.
-- Role: used only after Gemini, Groq, and OpenRouter fail.
+- Endpoint: `https://api-inference.huggingface.co/models/meta-llama/Llama-3.1-8B-Instruct`
+- Role: Final fallback for text-based document analysis.
 
-### Local OCR / Text Extraction
-- Package: `pytesseract`
-- Package: `Pillow`
-- Purpose: local OCR extraction for images before AI analysis, improving fallback resilience and helping support providers that need plain text.
+### Local OCR
+- Packages: `pytesseract`, `Pillow`
+- Role: Local text extraction from images before AI analysis.
+
+---
 
 ## Known Limitations
 
-- Maximum upload size is limited to 4MB.
+- Maximum upload size is limited to **4 MB**.
 - OCR accuracy depends on image quality and clarity.
-- The system is optimized for PDF, DOCX, and common image formats, but may fail on highly complex or encrypted documents.
-- The deployed API is currently based on a single serverless FastAPI endpoint; heavy loads may require scaling or a dedicated backend.
-- Model output quality depends on the Gemini provider and network availability.
+- Optimized for PDF, DOCX, and common image formats; encrypted or complex layouts may fail.
+- Supabase free-tier storage limits apply.
+- Model output quality depends on AI provider availability and network conditions.
+
+---
 
 ## Notes
 
-- This project uses FastAPI for the backend API; the endpoint is not a generic REST framework, but a FastAPI implementation.
-- The deployed API endpoint is `https://intellidoc-v2.vercel.app/api/document-analyze`.
+- The Supabase auth callback is handled at `/auth/callback` — ensure your Supabase project's redirect URLs include `https://intellidoc-v2.vercel.app/auth/callback` (and `http://localhost:5173/auth/callback` for local dev).
+- The deployed API endpoint remains: `https://intellidoc-v2.vercel.app/api/document-analyze`.
