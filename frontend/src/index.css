@@ -688,8 +688,8 @@ body {
 
 @media (max-width: 768px) {
   .app-shell {
-    padding: 1.5rem 1rem;
-    gap: 2.5rem;
+    padding: 1.5rem 1rem 8rem; /* Increased bottom padding for mobile nav */
+    gap: 2rem;
     margin-top: 1rem;
   }
 
@@ -722,6 +722,7 @@ body {
     margin-bottom: 1.5rem;
     justify-content: center;
     width: 100%;
+    z-index: auto; /* Remove z-index to prevent overlapping */
   }
 
   .neural-key-portal:hover .neural-key-input {
@@ -733,6 +734,7 @@ body {
     aspect-ratio: 1 / 1;
     min-height: 320px;
     border-radius: 32px;
+    margin-bottom: 2rem; /* Add margin to prevent overlapping with content below */
   }
 
   .hologram-circle {
@@ -762,6 +764,7 @@ body {
   .nebula-card {
     padding: 2rem 1.5rem;
     border-radius: 28px;
+    margin-bottom: 1rem; /* Add margin between cards */
   }
 
   .summary-large {
@@ -791,6 +794,7 @@ body {
     padding: 1.2rem 3rem;
     font-size: 1rem;
     width: 100%;
+    margin-bottom: 1rem; /* Add margin to prevent overlapping */
   }
   
   .nebula-results {
@@ -798,12 +802,34 @@ body {
     gap: 2rem;
   }
 
-
   .code-block {
     padding: 1.2rem;
   }
 
   .full-text-display {
+    padding: 1.5rem;
+  }
+
+  .supported-files-hero {
+    flex-direction: column;
+    gap: 0.8rem;
+    align-items: center;
+  }
+
+  .format-chip {
+    min-width: 120px;
+    padding: 0.8rem 1rem;
+  }
+
+  .hero-section {
+    margin-bottom: 1rem;
+  }
+
+  .value-grid {
+    gap: 1rem;
+  }
+
+  .value-card {
     padding: 1.5rem;
   }
 }
@@ -1285,8 +1311,27 @@ body {
 }
 
 @media (max-width: 1024px) {
+  .app-shell {
+    padding: 3rem 1.5rem 8rem; /* Add bottom padding for tablet nav */
+    gap: 4rem;
+  }
+
+  .floating-layer {
+     gap: 1.5rem;
+  }
+
+  .singularity-zone {
+    aspect-ratio: 16 / 9;
+    min-height: 400px;
+  }
+
+  .nebula-intro {
+    gap: 3rem;
+  }
+
   .value-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
   }
 
   .code-section {
@@ -1297,10 +1342,12 @@ body {
   .download-actions {
     flex-wrap: wrap;
     justify-content: center;
+    gap: 0.8rem;
   }
 
   .download-actions .icon-button {
     min-width: 180px;
+    flex: 1;
   }
 
   .nebula-card {
@@ -1321,6 +1368,26 @@ body {
 
   .supported-files-hero {
     justify-content: center;
+    gap: 1rem;
+  }
+
+  .format-chip {
+    min-width: 120px;
+  }
+
+  .hero-section {
+    margin-bottom: 2rem;
+  }
+
+  .neural-key-portal {
+    position: relative;
+    top: 0;
+    right: 0;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    justify-content: center;
+    width: 100%;
+    z-index: auto;
   }
 }
 
@@ -1401,17 +1468,22 @@ body {
 
 @media (max-width: 480px) {
   .app-shell {
-    padding: 1rem 0.75rem;
+    padding: 1rem 0.75rem 6rem; /* Even more bottom padding for small screens */
     gap: 1.5rem;
   }
 
-  .hero-tagline {
-    font-size: 1rem;
+  .nebula-title {
+    font-size: 2.6rem;
   }
-
+  
   .singularity-zone {
     min-height: 260px;
     border-radius: 28px;
+    margin-bottom: 1.5rem;
+  }
+  
+  .action-text {
+    font-size: 1.8rem;
   }
 
   .loader-card {
@@ -1434,10 +1506,67 @@ body {
   .nebula-nav {
     width: calc(100% - 1.5rem);
     bottom: 0.6rem;
+    padding: 0.5rem;
   }
 
   .nav-link {
     padding: 0.55rem 0.8rem;
+    gap: 0.5rem;
+  }
+
+  .nav-icon {
+    font-size: 1.2rem;
+  }
+
+  .hero-tagline {
+    font-size: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .supported-files-hero {
+    gap: 0.6rem;
+  }
+
+  .format-chip {
+    min-width: 100px;
+    padding: 0.7rem 0.8rem;
+    font-size: 0.85rem;
+  }
+
+  .chip-icon {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
+
+  .chip-icon svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .neural-key-portal {
+    margin-bottom: 1rem;
+  }
+
+  .neural-key-input {
+    width: 100%;
+    opacity: 1;
+    padding: 0 0.8rem;
+    margin-left: 0;
+    max-width: none;
+  }
+
+  .floating-layer {
+    gap: 1rem;
+  }
+
+  .nebula-card {
+    padding: 1.5rem 1rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .void-button {
+    padding: 1rem 2rem;
+    font-size: 0.95rem;
   }
 }
 
