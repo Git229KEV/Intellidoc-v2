@@ -1,73 +1,88 @@
 ﻿# Intelligent Document Processor API
 
 ## Description
-This project implements an Intelligent Document Processing backend using FastAPI. It automatically extracts text, summarizes content, identifies entities, and determines the sentiment of uploaded documents (PDF, DOCX, Images). The deployed API endpoint is:
-
-`https://intellidoc-v2.vercel.app/api/document-analyze`
-
-## Tech Stack
-- **Framework**: Python with FastAPI
-- **Document Extractors**:
-  - `pdfplumber` for PDF extraction
-  - `python-docx` for DOCX extraction
-  - `pytesseract` and `Pillow` for Image OCR (Optical Character Recognition)
-- **AI/ML**: `google-genai` (Gemini API with `gemini-2.5-flash` model) used for summarization, entity extraction, and sentiment classification with structured JSON schema execution
-- **Deployment**: Vercel serverless deployment for the FastAPI app
-
-## Setup Instructions
-
-### Prerequisites
-1. **Python 3.10+** installed on your system.
-2. **Tesseract-OCR**: Install the [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) binary and ensure it is available in your PATH.
-
-### 1. Clone the repository
-Navigate to the directory where you cloned or extracted the source code:
-```bash
-cd "Ai doc scanner"
-```
-
-### 2. Install dependencies
-It is highly recommended to use a virtual environment:
-```bash
-python -m venv venv
-# Windows:
-venv\Scripts\activate
-# Linux/Mac:
-source venv/bin/activate
-```
-Install the Python dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Set environment variables
-Copy the `.env.example` file to create your `.env` file:
-```bash
-# On Windows Command Prompt:
-copy .env.example .env
-```
-Open `.env` and configure your API keys:
-- `GEMINI_API_KEY`: Your Google Gemini API Developer Key.
-- `API_KEY`: The custom API key for clients calling your API, e.g. `sk_track2_987654321`.
-
-### 4. Run the application locally
-Start the FastAPI server via Uvicorn:
-```bash
-uvicorn src.main:app --reload
-```
-The server will be available at `http://127.0.0.1:8000`.
-
-## Approach
-### Data Extraction Strategy
-1. **Routing and Verification:** The `x-api-key` header is validated to secure the endpoint. The `document-analyze` POST endpoint accepts `fileName`, `fileType`, and `fileBase64` payload as JSON.
-2. **Text Extraction Pipeline (`DocumentParser.py`):** The Base64 string is decoded to raw bytes and loaded into an IO stream.
-   - PDF files are mapped to `pdfplumber` to iteratively extract text across multiple pages.
-   - DOCX files are processed with `python-docx` to reconstruct plain text from document runs.
-   - Image files are processed with Python's PIL (Pillow) and then parsed with `pytesseract`.
-3. **AI Structured Processing (`AIProcessor.py`):** Google Gemini (`gemini-2.5-flash`) is used to analyze the extracted text. The prompt enforces structured JSON output with `summary`, `entities` (names, dates, organizations, amounts), and `sentiment`.
+This repository implements an Intelligent Document Processor built with FastAPI. It accepts uploaded documents (PDF, DOCX, and image files), extracts text, identifies entities, summarizes content, and returns structured intelligence.
 
 ## API Endpoint
 - POST `https://intellidoc-v2.vercel.app/api/document-analyze`
 
+## Setup Instructions
+
+### Prerequisites
+1. **Python 3.10+** installed on your machine.
+2. **Tesseract-OCR** installed and available in your system PATH.
+3. Optional: a virtual environment for isolation.
+
+### Install Dependencies
+```bash
+python -m venv venv
+# Windows:
+venv\Scripts\activate
+# macOS / Linux:
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Environment Variables
+Copy the example environment file and configure your keys:
+```bash
+copy .env.example .env
+```
+Edit `.env` and set:
+- `GEMINI_API_KEY` — Google Gemini API key
+- `API_KEY` — custom API key used by the frontend or clients
+
+### Run Locally
+```bash
+uvicorn src.main:app --reload
+```
+The local server will be available at `http://127.0.0.1:8000`.
+
+## Architecture Overview
+
+The project is structured as a FastAPI backend with a document parsing layer and an AI processing layer.
+
+- `src.main` defines the FastAPI application and the `/api/document-analyze` endpoint.
+- `backend/DocumentParser.py` extracts raw text from supported files:
+  - PDF → `pdfplumber`
+  - DOCX → `python-docx`
+  - Images → `Pillow` + `pytesseract`
+- `backend/AIProcessor.py` sends the extracted text into the AI pipeline and returns structured JSON output.
+- The deployed API is served on Vercel as a serverless FastAPI endpoint.
+
+## Tech Stack
+
+- **Backend**: Python, FastAPI, Uvicorn
+- **Deployment**: Vercel serverless functions
+- **Document parsing**:
+  - `pdfplumber`
+  - `python-docx`
+  - `Pillow`
+  - `pytesseract`
+- **AI/ML**:
+  - `google-genai`
+- **Environment management**:
+  - `python` venv
+
+## AI Tools Used
+
+This project uses the following AI tool:
+
+### Google Gemini
+- Package: `google-genai`
+- Model: `gemini-2.5-flash`
+- Purpose: summarization, entity extraction, sentiment classification
+- Behavior: extracted document text is passed to Gemini with a structured prompt that requests JSON schema output. This ensures the AI returns consistent fields such as `summary`, `entities`, and `sentiment`.
+
+## Known Limitations
+
+- Maximum upload size is limited to 4MB.
+- OCR accuracy depends on image quality and clarity.
+- The system is optimized for PDF, DOCX, and common image formats, but may fail on highly complex or encrypted documents.
+- The deployed API is currently based on a single serverless FastAPI endpoint; heavy loads may require scaling or a dedicated backend.
+- Model output quality depends on the Gemini provider and network availability.
+
 ## Notes
-- This project uses FastAPI, not a generic REST framework; the endpoint is served by FastAPI and deployed on Vercel.
+
+- This project uses FastAPI for the backend API; the endpoint is not a generic REST framework, but a FastAPI implementation.
+- The deployed API endpoint is `https://intellidoc-v2.vercel.app/api/document-analyze`.
