@@ -60,23 +60,23 @@ def parse_document(file_base64: str, file_type: str) -> str:
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
     """
-    Hybrid PDF extraction using PyMuPDF and Tesseract OCR for scanned content.
+    Hybrid PDF extraction using PyMuPDF and Tesseract OCR for scanned pages.
     """
     text = ""
     try:
         # First layer: PyMuPDF for fast extraction
         doc = fitz.open(stream=file_bytes, filetype="pdf")
-        for page in doc:
-            page_text = page.get_text()
-            text += page_text
+        ocr_text = ""
         
-        # If text is minimal (< 100 chars), it's likely a scanned PDF or contains mostly images
-        if len(text.strip()) < 100:
-            print(f"DEBUG: PDF text minimal ({len(text.strip())} chars), attempting OCR...")
-            ocr_text = ""
-            # Only OCR first 5 pages to avoid timeouts/heavy load
-            for i in range(min(len(doc), 5)):
-                page = doc[i]
+        for i in range(len(doc)):
+            page = doc[i]
+            page_text = page.get_text().strip()
+            
+            if page_text:
+                text += f"\n[Page {i+1} Text]:\n{page_text}"
+            else:
+                # Page has no selectable text, likely an image/scan
+                print(f"DEBUG: PDF Page {i+1} has no text, attempting OCR...")
                 # Render page to an image (pixmap)
                 pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) # 2x zoom for better OCR
                 img_data = pix.tobytes("png")
@@ -88,10 +88,19 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
                 else:
                     print(f"DEBUG: No Tesseract for Page {i+1} OCR")
             
-            if ocr_text:
-                text = ocr_text
-                
+            # Limit OCR to first 5 pages to maintain performance
+            if i >= 4: break
+
         doc.close()
+        # Combine extracted text and OCR text
+        final_text = (text + "\n" + ocr_text).strip()
+        
+        # If still very little text, try a full OCR of the first page as a last resort
+        if len(final_text) < 50:
+             print("DEBUG: Minimal text found in PDF, returning empty for vision fallback trigger.")
+             return ""
+             
+        return final_text
     except Exception as e:
         print(f"DEBUG: PDF extraction error: {e}")
     return text

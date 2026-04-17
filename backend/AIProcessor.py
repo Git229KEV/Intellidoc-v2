@@ -186,22 +186,22 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
     is_image = any(t in file_type.lower() for t in image_types)
     is_pdf = 'pdf' in file_type.lower()
     
-    # For scanned PDFs, prepare the first page as an image for vision-capable models (Groq)
-    first_page_image_bytes = None
-    if is_pdf and not extracted_text.strip():
+    # Extract first page as image for all PDFs to ensure vision models can see embedded images/scans
+    pdf_vision_image_bytes = None
+    if is_pdf:
         try:
             import fitz
             doc = fitz.open(stream=file_bytes, filetype="pdf")
             if len(doc) > 0:
-                print(f"DEBUG: PDF has no text, extracting first page for vision analysis...")
+                print(f"DEBUG: Extracting PDF page 1 for vision analysis...")
                 pix = doc[0].get_pixmap(matrix=fitz.Matrix(2, 2))
-                first_page_image_bytes = pix.tobytes("png")
+                pdf_vision_image_bytes = pix.tobytes("png")
             doc.close()
         except Exception as e:
             print(f"DEBUG: Failed to extract first page image from PDF: {e}")
 
     # Determine provider priority based on file type
-    if is_image or first_page_image_bytes:
+    if is_image or pdf_vision_image_bytes:
         providers = [
             ("Groq", _try_groq),
             ("Gemini", _try_gemini),
@@ -219,9 +219,10 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
     for name, func in providers:
         try:
             print(f"DEBUG: Attempting analysis with {name}...")
-            # Use the extracted image for Groq/Gemini if it's a scanned PDF
-            target_bytes = first_page_image_bytes if (first_page_image_bytes and name in ["Groq", "Gemini"]) else file_bytes
-            target_type = "image/png" if (first_page_image_bytes and name in ["Groq", "Gemini"]) else file_type
+            # For PDFs, use the extracted page image if the provider supports vision (Groq/Gemini)
+            # This allows vision models to see embedded images/scans even if some text was extracted
+            target_bytes = pdf_vision_image_bytes if (pdf_vision_image_bytes and name in ["Groq", "Gemini"]) else file_bytes
+            target_type = "image/png" if (pdf_vision_image_bytes and name in ["Groq", "Gemini"]) else file_type
             
             raw_result = func(target_bytes, target_type, extracted_text, prompt)
             
