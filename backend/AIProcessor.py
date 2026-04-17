@@ -341,18 +341,24 @@ Fields to extract:
             
             # Map the response back to AnalysisSchema format
             data = json.loads(response.text)
+            
+            def clean_field(val):
+                if not val or str(val).lower() in ["not found", "n/a", "na", "none", "null"]:
+                    return []
+                return [str(val)]
+
             return {
                 "summary": f"Policy extraction {data.get('status', 'completed')}",
                 "entities": {
-                    "policy_number": [data.get("policy_number")] if data.get("policy_number") != "Not Found" else [],
-                    "insured_name": [data.get("insured_name")] if data.get("insured_name") != "Not Found" else [],
-                    "vehicle_number": [data.get("vehicle_number")] if data.get("vehicle_number") != "Not Found" else [],
-                    "policy_start_date": [data.get("policy_start_date")] if data.get("policy_start_date") != "Not Found" else [],
-                    "policy_end_date": [data.get("policy_end_date")] if data.get("policy_end_date") != "Not Found" else [],
-                    "od_premium": [data.get("od_premium")] if data.get("od_premium") != "Not Found" else [],
-                    "tp_premium": [data.get("tp_premium")] if data.get("tp_premium") != "Not Found" else [],
-                    "net_premium": [data.get("net_premium")] if data.get("net_premium") != "Not Found" else [],
-                    "gross_premium": [data.get("gross_premium")] if data.get("gross_premium") != "Not Found" else []
+                    "policy_number": clean_field(data.get("policy_number")),
+                    "insured_name": clean_field(data.get("insured_name")),
+                    "vehicle_number": clean_field(data.get("vehicle_number")),
+                    "policy_start_date": clean_field(data.get("policy_start_date")),
+                    "policy_end_date": clean_field(data.get("policy_end_date")),
+                    "od_premium": clean_field(data.get("od_premium")),
+                    "tp_premium": clean_field(data.get("tp_premium")),
+                    "net_premium": clean_field(data.get("net_premium")),
+                    "gross_premium": clean_field(data.get("gross_premium"))
                 },
                 "sentiment": "Neutral",
                 "confidence_score": 0.95 if data.get("status") == "success" else 0.0
