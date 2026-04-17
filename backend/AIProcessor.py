@@ -202,15 +202,20 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
             print(f"DEBUG: Failed to extract first page image from PDF: {e}")
 
     # Determine provider priority based on file type
+    # For images or scanned PDFs, use vision-capable providers first
     if is_image or pdf_vision_image_bytes:
         providers = [
-            ("Gemini", _try_gemini), # Gemini is best for multi-page PDFs
-            ("Groq", _try_groq),      # Groq is best for fast vision fallback
+            ("Gemini-Pro", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3.1-pro-preview')),
+            ("Gemini-Flash", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3-flash-preview')),
+            ("Gemini-Flash-Lite", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3.1-flash-lite-preview')),
+            ("Groq", _try_groq),
             ("OpenRouter", _try_openrouter),
         ]
     else:
         providers = [
-            ("Gemini", _try_gemini),
+            ("Gemini-Pro", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3.1-pro-preview')),
+            ("Gemini-Flash", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3-flash-preview')),
+            ("Gemini-Flash-Lite", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3.1-flash-lite-preview')),
             ("Groq", _try_groq),
             ("OpenRouter", _try_openrouter),
             ("HuggingFace", _try_huggingface)
@@ -266,7 +271,7 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
         "error_details": "; ".join(errors)
     }
 
-def _try_gemini(file_bytes, file_type, extracted_text, prompt):
+def _try_gemini(file_bytes, file_type, extracted_text, prompt, model_name='gemini-3.1-pro-preview'):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         print("DEBUG: GEMINI_API_KEY not set")
@@ -277,15 +282,15 @@ def _try_gemini(file_bytes, file_type, extracted_text, prompt):
     
     contents = []
     if file_type in ['png', 'webp', 'jpg', 'jpeg', 'image', 'image/png', 'image/jpeg', 'image/webp']:
-        print(f"DEBUG: Gemini processing image - file_type: {file_type}, size: {len(file_bytes)} bytes")
+        print(f"DEBUG: Gemini ({model_name}) processing image - file_type: {file_type}, size: {len(file_bytes)} bytes")
         # Ensure common image formats are consistent
         mime = "image/jpeg"
-        if file_type == 'png': mime = "image/png"
-        elif file_type == 'webp': mime = "image/webp"
+        if file_type == 'png' or 'png' in file_type: mime = "image/png"
+        elif file_type == 'webp' or 'webp' in file_type: mime = "image/webp"
         contents = [types.Part.from_bytes(data=file_bytes, mime_type=mime), prompt]
         print(f"DEBUG: Gemini image prepared with mime: {mime}")
     elif file_type == 'pdf':
-        print(f"DEBUG: Gemini processing PDF - size: {len(file_bytes)} bytes")
+        print(f"DEBUG: Gemini ({model_name}) processing PDF - size: {len(file_bytes)} bytes")
         contents = [types.Part.from_bytes(data=file_bytes, mime_type="application/pdf"), prompt]
     else:
         contents = [f"Document Text:\n\n{extracted_text}\n\n{prompt}"]
@@ -293,9 +298,9 @@ def _try_gemini(file_bytes, file_type, extracted_text, prompt):
     try:
         # Increased timeout for Gemini (experiencing high load periods, 503 errors)
         # Minimum is 10s, using 15s to handle demand spikes
-        print("DEBUG: Sending request to Gemini...")
+        print(f"DEBUG: Sending request to Gemini ({model_name})...")
         response = client.models.generate_content(
-            model='gemini-3.1-flash',
+            model=model_name,
             contents=contents,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
