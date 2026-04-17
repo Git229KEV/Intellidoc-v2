@@ -203,8 +203,8 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
     # Determine provider priority based on file type
     if is_image or pdf_vision_image_bytes:
         providers = [
-            ("Groq", _try_groq),
-            ("Gemini", _try_gemini),
+            ("Gemini", _try_gemini), # Gemini is best for multi-page PDFs
+            ("Groq", _try_groq),      # Groq is best for fast vision fallback
             ("OpenRouter", _try_openrouter),
         ]
     else:
@@ -219,10 +219,14 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
     for name, func in providers:
         try:
             print(f"DEBUG: Attempting analysis with {name}...")
-            # For PDFs, use the extracted page image if the provider supports vision (Groq/Gemini)
-            # This allows vision models to see embedded images/scans even if some text was extracted
-            target_bytes = pdf_vision_image_bytes if (pdf_vision_image_bytes and name in ["Groq", "Gemini"]) else file_bytes
-            target_type = "image/png" if (pdf_vision_image_bytes and name in ["Groq", "Gemini"]) else file_type
+            # Gemini has native PDF support - ALWAYS give it the original file for full context
+            if name == "Gemini":
+                target_bytes = file_bytes
+                target_type = file_type
+            else:
+                # Groq and others need the extracted image for PDFs
+                target_bytes = pdf_vision_image_bytes if (pdf_vision_image_bytes and name == "Groq" and is_pdf) else file_bytes
+                target_type = "image/png" if (pdf_vision_image_bytes and name == "Groq" and is_pdf) else file_type
             
             raw_result = func(target_bytes, target_type, extracted_text, prompt)
             

@@ -72,35 +72,39 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
             page = doc[i]
             page_text = page.get_text().strip()
             
+            # If page has text, use it
             if page_text:
-                text += f"\n[Page {i+1} Text]:\n{page_text}"
-            else:
-                # Page has no selectable text, likely an image/scan
-                print(f"DEBUG: PDF Page {i+1} has no text, attempting OCR...")
-                # Render page to an image (pixmap)
-                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) # 2x zoom for better OCR
+                text += f"\n[Page {i+1} Text]:\n{page_text}\n"
+            
+            # If page has images OR no text, attempt OCR on the visual layer
+            # This handles "images inside PDF" even if there's some background text/metadata
+            page_images = page.get_images()
+            if len(page_images) > 0 or not page_text:
+                print(f"DEBUG: PDF Page {i+1} contains images or no text. Attempting OCR...")
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                 img_data = pix.tobytes("png")
                 img = Image.open(io.BytesIO(img_data))
                 
                 if tesseract_path:
                     page_ocr = pytesseract.image_to_string(img)
-                    ocr_text += f"\n[Page {i+1} OCR]:\n{page_ocr}"
+                    if page_ocr.strip():
+                        ocr_text += f"\n[Page {i+1} OCR]:\n{page_ocr}\n"
                 else:
-                    print(f"DEBUG: No Tesseract for Page {i+1} OCR")
+                    print(f"DEBUG: No Tesseract for Page {i+1} OCR fallback.")
             
-            # Limit OCR to first 5 pages to maintain performance
+            # Limit to first 5 pages for processing speed
             if i >= 4: break
 
         doc.close()
-        # Combine extracted text and OCR text
-        final_text = (text + "\n" + ocr_text).strip()
         
-        # If still very little text, try a full OCR of the first page as a last resort
-        if len(final_text) < 50:
-             print("DEBUG: Minimal text found in PDF, returning empty for vision fallback trigger.")
-             return ""
-             
-        return final_text
+        # Combine everything
+        combined_text = (text + "\n" + ocr_text).strip()
+        
+        if len(combined_text) < 20:
+            print("DEBUG: No substantial text found in PDF.")
+            return ""
+            
+        return combined_text
     except Exception as e:
         print(f"DEBUG: PDF extraction error: {e}")
     return text
