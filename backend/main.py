@@ -50,34 +50,43 @@ class DocumentRequest(BaseModel):
     fileBase64: str = Field(..., description="Base64 encoded content")
 
 class EntitiesResponse(BaseModel):
-    names: list[str] = Field(default_factory=list)
-    dates: list[str] = Field(default_factory=list)
-    organizations: list[str] = Field(default_factory=list)
-    amounts: list[str] = Field(default_factory=list)
-    unique_identifiers: list[str] = Field(default_factory=list)
-    locations: list[str] = Field(default_factory=list)
-    contact_details: list[str] = Field(default_factory=list)
+    policy_number: list[str] = Field(default_factory=list)
+    insured_name: list[str] = Field(default_factory=list)
+    vehicle_number: list[str] = Field(default_factory=list)
+    policy_start_date: list[str] = Field(default_factory=list)
+    policy_end_date: list[str] = Field(default_factory=list)
+    od_premium: list[str] = Field(default_factory=list)
+    tp_premium: list[str] = Field(default_factory=list)
+    net_premium: list[str] = Field(default_factory=list)
+    gross_premium: list[str] = Field(default_factory=list)
 
 class DocumentResponse(BaseModel):
+    policy_number: str = ""
+    name: str = ""
+    vehicle_no: str = ""
+    policy_start_date: str = ""
+    policy_end_date: str = ""
+    od: str = ""
+    tp: str = ""
+    net_premium: str = ""
+    gross_premium: str = ""
+    premium: str = ""
     status: str
-    fileName: str
-    summary: str
-    entities: EntitiesResponse
-    sentiment: str
-    confidence_score: float = Field(..., description="Neural synthesis confidence")
-    error_details: str = Field(default="", description="Detailed error logs for fallback debugging")
+    error_details: str = ""
 
 
 def _safe_entities_payload(raw) -> dict:
-    """Coerce AI output into a dict Pydantic can validate (avoids 500 on bad shapes)."""
+    """Coerce AI output into a dict Pydantic can validate."""
     keys = (
-        "names",
-        "dates",
-        "organizations",
-        "amounts",
-        "unique_identifiers",
-        "locations",
-        "contact_details",
+        "policy_number",
+        "insured_name",
+        "vehicle_number",
+        "policy_start_date",
+        "policy_end_date",
+        "od_premium",
+        "tp_premium",
+        "net_premium",
+        "gross_premium",
     )
     if not isinstance(raw, dict):
         return {k: [] for k in keys}
@@ -134,14 +143,21 @@ async def analyze_document(request: DocumentRequest, api_key: str = Depends(veri
             entities = EntitiesResponse.model_validate(
                 _safe_entities_payload(analysis_result.get("entities"))
             )
+            
+            # Map to flat response requested by user
             return DocumentResponse(
                 status="success" if is_success else "error",
-                fileName=request.fileName,
-                summary=analysis_result.get("summary", "Analysis failed."),
-                entities=entities,
-                sentiment=analysis_result.get("sentiment", "Neutral"),
-                confidence_score=float(analysis_result.get("confidence_score", 0.0)),
-                error_details=analysis_result.get("error_details", ""),
+                policy_number=entities.policy_number[0] if entities.policy_number else "",
+                name=entities.insured_name[0] if entities.insured_name else "",
+                vehicle_no=entities.vehicle_number[0] if entities.vehicle_number else "",
+                policy_start_date=entities.policy_start_date[0] if entities.policy_start_date else "",
+                policy_end_date=entities.policy_end_date[0] if entities.policy_end_date else "",
+                od=entities.od_premium[0] if entities.od_premium else "",
+                tp=entities.tp_premium[0] if entities.tp_premium else "",
+                net_premium=entities.net_premium[0] if entities.net_premium else "",
+                gross_premium=entities.gross_premium[0] if entities.gross_premium else "",
+                premium=entities.gross_premium[0] if entities.gross_premium else "", # Alias for example compatibility
+                error_details=analysis_result.get("error_details", "")
             )
         except ValidationError as ve:
             raise HTTPException(

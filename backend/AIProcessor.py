@@ -7,20 +7,22 @@ from google import genai
 from google.genai import types
 from openai import OpenAI
 
-class EntitiesSchema(BaseModel):
-    names: list[str] = Field(default_factory=list, description="Extracted names of people")
-    dates: list[str] = Field(default_factory=list, description="Extracted dates")
-    organizations: list[str] = Field(default_factory=list, description="Extracted organizations/company names")
-    amounts: list[str] = Field(default_factory=list, description="Extracted monetary amounts")
-    unique_identifiers: list[str] = Field(default_factory=list, description="Extracted IDs, Invoice Nos, Passport Nos, etc.")
-    locations: list[str] = Field(default_factory=list, description="Extracted addresses or specific landmarks")
-    contact_details: list[str] = Field(default_factory=list, description="Extracted phone numbers, email addresses, etc.")
+class InsuranceExtractionSchema(BaseModel):
+    policy_number: list[str] = Field(default_factory=list, description="Extracted policy numbers")
+    insured_name: list[str] = Field(default_factory=list, description="Extracted names of the insured")
+    vehicle_number: list[str] = Field(default_factory=list, description="Extracted vehicle registration numbers")
+    policy_start_date: list[str] = Field(default_factory=list, description="Extracted policy start dates")
+    policy_end_date: list[str] = Field(default_factory=list, description="Extracted policy end dates")
+    od_premium: list[str] = Field(default_factory=list, description="Extracted Own Damage (OD) premium amounts")
+    tp_premium: list[str] = Field(default_factory=list, description="Extracted Third Party (TP) premium amounts")
+    net_premium: list[str] = Field(default_factory=list, description="Extracted net premium amounts")
+    gross_premium: list[str] = Field(default_factory=list, description="Extracted gross premium amounts")
 
 class AnalysisSchema(BaseModel):
-    summary: str = Field(default="", description="A detailed paragraph summary of the document content, ideally 6-7 lines long.")
-    entities: EntitiesSchema = Field(default_factory=EntitiesSchema)
-    sentiment: str = Field(default="Neutral", description="The overall sentiment of the content. Must be Positive, Negative, or Neutral")
-    confidence_score: float = Field(default=0.0, description="Confidence score for the extraction (0.0 to 1.0)")
+    summary: str = Field(default="", description="A summary of the document.")
+    entities: InsuranceExtractionSchema = Field(default_factory=InsuranceExtractionSchema)
+    sentiment: str = Field(default="Neutral")
+    confidence_score: float = Field(default=0.0)
 
 def clean_json_response(raw_text: str) -> dict:
     """
@@ -66,19 +68,21 @@ def is_sample_data(response_dict: dict, file_type: str) -> bool:
             print(f"DEBUG: Detected sample data indicator: '{indicator}'")
             return True
     
-    # For images, if no entities extracted, likely sample data
+    # For images, if no insurance entities extracted, likely sample data
     if file_type.lower().strip() in ['png', 'webp', 'jpg', 'jpeg', 'image']:
         total_entities = sum([
-            len(entities.get("names", [])),
-            len(entities.get("dates", [])),
-            len(entities.get("organizations", [])),
-            len(entities.get("locations", [])),
-            len(entities.get("contact_details", [])),
-            len(entities.get("unique_identifiers", [])),
-            len(entities.get("amounts", [])),
+            len(entities.get("policy_number", [])),
+            len(entities.get("insured_name", [])),
+            len(entities.get("vehicle_number", [])),
+            len(entities.get("policy_start_date", [])),
+            len(entities.get("policy_end_date", [])),
+            len(entities.get("od_premium", [])),
+            len(entities.get("tp_premium", [])),
+            len(entities.get("net_premium", [])),
+            len(entities.get("gross_premium", [])),
         ])
         if total_entities == 0:
-            print(f"DEBUG: Image analysis returned no entities - likely sample/empty")
+            print(f"DEBUG: Image analysis returned no insurance entities - likely sample/empty")
             return True
     
     return False
@@ -91,68 +95,80 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
     
     is_image = file_type.lower().strip() in ['png', 'webp', 'jpg', 'jpeg', 'image']
     
-    # Different prompts for images vs text
+    # Different prompts for insurance document analysis
     if is_image:
         prompt = """
-        YOU ARE A PROFESSIONAL DOCUMENT ANALYZER. YOU MUST ANALYZE THE ACTUAL IMAGE PROVIDED.
+        YOU ARE A PROFESSIONAL INSURANCE DOCUMENT ANALYZER. YOU MUST ANALYZE THE ACTUAL IMAGE PROVIDED.
         
         CRITICAL INSTRUCTIONS:
         1. LOOK AT THE IMAGE CAREFULLY - You MUST perform OCR/text recognition on the visual content
-        2. READ ALL TEXT VISIBLE - Extract every word, name, date, number, and identifiable information
+        2. READ ALL TEXT VISIBLE - Extract specific insurance policy details
         3. DO NOT generate sample data - ONLY report what you see in the image
         4. IF IMAGE IS BLANK OR UNREADABLE - Return empty arrays, NOT sample data
         
         MANDATORY EXTRACTION REQUIREMENTS:
-        1. ALL NAMES visible in the image (people, companies, organizations)
-        2. ALL DATES visible (any date format)
-        3. ALL ORGANIZATIONS/COMPANIES mentioned
-        4. ALL MONETARY AMOUNTS or prices
-        5. ALL UNIQUE IDENTIFIERS (ID numbers, invoice numbers, receipt numbers, reference codes)
-        6. ALL LOCATIONS/ADDRESSES visible
-        7. ALL CONTACT DETAILS (phone numbers, emails, websites)
-        8. SENTIMENT of the document (Positive, Negative, or Neutral tone)
-        9. SUMMARY: 1-2 sentences describing what this document/image shows
+        1. POLICY NUMBER: The unique identifier for the policy
+        2. INSURED NAME: The name of the person or entity insured
+        3. VEHICLE NUMBER: The registration number of the vehicle (e.g., TN01AB1234)
+        4. POLICY START DATE: When the coverage begins
+        5. POLICY END DATE: When the coverage ends
+        6. OD: Own Damage premium amount
+        7. TP: Third Party premium amount
+        8. NET PREMIUM: The net premium amount
+        9. GROSS PREMIUM: The total gross premium amount
         
         CRITICAL: 
         - If you cannot read the image clearly, return empty results
         - Do NOT hallucinate or invent data
-        - Do NOT use sample data like "TechCorp" or "receipt example"
         - Only extract what is VISUALLY present in the image
         
         Return ONLY valid JSON in this exact format:
         {
-          "summary": "Brief description of what the image shows (empty if unreadable)",
+          "summary": "Brief description of the insurance document",
           "entities": {
-            "names": ["exact names from image"],
-            "dates": ["all visible dates"],
-            "organizations": ["companies/orgs mentioned"],
-            "amounts": ["monetary values if any"],
-            "unique_identifiers": ["ID numbers, codes"],
-            "locations": ["addresses and places"],
-            "contact_details": ["phones, emails, websites"]
+            "policy_number": ["..."],
+            "insured_name": ["..."],
+            "vehicle_number": ["..."],
+            "policy_start_date": ["..."],
+            "policy_end_date": ["..."],
+            "od_premium": ["..."],
+            "tp_premium": ["..."],
+            "net_premium": ["..."],
+            "gross_premium": ["..."]
           },
-          "sentiment": "Positive/Negative/Neutral",
+          "sentiment": "Neutral",
           "confidence_score": 0.95
         }
         """
     else:
         prompt = """
-        CRITICAL: You are an expert document analysis agent. 
-        Analyze the provided document with 100% precision.
+        CRITICAL: You are an expert insurance document analysis agent. 
+        Analyze the provided document and extract the following insurance fields with 100% precision.
         
         EXTRACT ALL OF THE FOLLOWING:
-        1. Names, Dates, Organizations, Monetary Amounts
-        2. UNIQUE IDENTIFIERS: Extract EVERY ID, Invoice Number, Receipt ID, etc.
-        3. LOCATIONS & CONTACTS: Extract full addresses, phone numbers, and emails
-        4. SENTIMENT: Determine if the document tone is Positive, Negative, or Neutral
-        5. SUMMARY: Provide a detailed paragraph summary of the document, approximately 6-7 lines long.
+        1. Policy Number
+        2. Insured Name
+        3. Vehicle Number
+        4. Policy Start Date
+        5. Policy End Date
+        6. OD (Own Damage Premium)
+        7. TP (Third Party Premium)
+        8. Net Premium
+        9. Gross Premium
 
         Return result in STRICT JSON format:
         {
           "summary": "...",
           "entities": {
-            "names": [], "dates": [], "organizations": [], "amounts": [],
-            "unique_identifiers": [], "locations": [], "contact_details": []
+            "policy_number": [],
+            "insured_name": [],
+            "vehicle_number": [],
+            "policy_start_date": [],
+            "policy_end_date": [],
+            "od_premium": [],
+            "tp_premium": [],
+            "net_premium": [],
+            "gross_premium": []
           },
           "sentiment": "...",
           "confidence_score": 0.95
