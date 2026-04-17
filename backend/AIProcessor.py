@@ -68,21 +68,23 @@ def is_sample_data(response_dict: dict, file_type: str) -> bool:
             print(f"DEBUG: Detected sample data indicator: '{indicator}'")
             return True
     
-    # For images, if no insurance entities extracted, likely sample data
-    if file_type.lower().strip() in ['png', 'webp', 'jpg', 'jpeg', 'image']:
-        total_entities = sum([
-            len(entities.get("policy_number", [])),
-            len(entities.get("insured_name", [])),
-            len(entities.get("vehicle_number", [])),
-            len(entities.get("policy_start_date", [])),
-            len(entities.get("policy_end_date", [])),
-            len(entities.get("od_premium", [])),
-            len(entities.get("tp_premium", [])),
-            len(entities.get("net_premium", [])),
-            len(entities.get("gross_premium", [])),
-        ])
-        if total_entities == 0:
-            print(f"DEBUG: Image analysis returned no insurance entities - likely sample/empty")
+    # For images, if no insurance entities extracted, likely sample data or failed extraction
+    image_types = ['png', 'webp', 'jpg', 'jpeg', 'image']
+    is_img = any(t in file_type.lower() for t in image_types)
+    
+    if is_img:
+        total_entities = 0
+        valid_entities = 0
+        for key, values in entities.items():
+            if isinstance(values, list):
+                total_entities += len(values)
+                for v in values:
+                    v_str = str(v).lower()
+                    if v_str and "not explicitly" not in v_str and "n/a" not in v_str and "unknown" not in v_str:
+                        valid_entities += 1
+        
+        if valid_entities == 0:
+            print(f"DEBUG: Image analysis returned no valid insurance entities - trying fallback...")
             return True
     
     return False
@@ -175,8 +177,9 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
         }
         """
 
-    is_image = file_type.lower().strip() in ['png', 'webp', 'jpg', 'jpeg', 'image']
-    is_pdf = file_type.lower().strip() == 'pdf'
+    image_types = ['png', 'webp', 'jpg', 'jpeg', 'image']
+    is_image = any(t in file_type.lower() for t in image_types)
+    is_pdf = 'pdf' in file_type.lower()
     
     # For scanned PDFs, prepare the first page as an image for vision-capable models (Groq)
     first_page_image_bytes = None
@@ -324,6 +327,7 @@ def _try_groq(file_bytes, file_type, extracted_text, prompt):
         if file_type == 'png': mime_url = "image/png"
         
         messages = [
+            {"role": "system", "content": "You are a professional insurance data extraction agent. You must extract policy details with 100% accuracy from the provided visual data."},
             {
                 "role": "user",
                 "content": [
@@ -338,17 +342,22 @@ def _try_groq(file_bytes, file_type, extracted_text, prompt):
         print("DEBUG: Groq vision message prepared")
     else:
         content = f"Document Text:\n\n{extracted_text}\n\n{prompt}"
-        messages = [{"role": "user", "content": content}]
+        messages = [
+            {"role": "system", "content": "You are a professional insurance data extraction agent. You must extract policy details with 100% accuracy from the provided visual or text data."},
+            {
+                "role": "user",
+                "content": content
+            }
+        ]
     
     try:
-        # Using current active Groq vision model (llama-3.2 vision models were deprecated 4/14/25)
         print("DEBUG: Sending request to Groq...")
         response = client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
             messages=messages,
             response_format={"type": "json_object"},
-            temperature=0.1,
-            timeout=10.0  # Timeout for image processing
+            temperature=0.0, # Zero temperature for precision
+            timeout=15.0  # Increased timeout
         )
         result = response.choices[0].message.content
         print("DEBUG: Groq response received successfully")

@@ -76,7 +76,7 @@ class DocumentResponse(BaseModel):
 
 
 def _safe_entities_payload(raw) -> dict:
-    """Coerce AI output into a dict Pydantic can validate."""
+    """Coerce AI output into a dict Pydantic can validate and filter placeholders."""
     keys = (
         "policy_number",
         "insured_name",
@@ -90,15 +90,22 @@ def _safe_entities_payload(raw) -> dict:
     )
     if not isinstance(raw, dict):
         return {k: [] for k in keys}
+    
+    placeholders = ["not explicitly mentioned", "n/a", "unknown", "none", "...", "null"]
     out = {}
     for k in keys:
         v = raw.get(k)
         if isinstance(v, list):
-            out[k] = [str(x) for x in v]
+            # Filter out placeholder values
+            out[k] = [str(x) for x in v if str(x).lower() not in placeholders]
         elif v is None:
             out[k] = []
         else:
-            out[k] = [str(v)]
+            v_str = str(v)
+            if v_str.lower() in placeholders:
+                out[k] = []
+            else:
+                out[k] = [v_str]
     return out
 
 
