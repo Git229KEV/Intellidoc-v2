@@ -81,7 +81,7 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
             page_images = page.get_images()
             if len(page_images) > 0 or not page_text:
                 print(f"DEBUG: PDF Page {i+1} contains images or no text. Attempting OCR...")
-                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                pix = page.get_pixmap(matrix=fitz.Matrix(3, 3))
                 img_data = pix.tobytes("png")
                 img = Image.open(io.BytesIO(img_data))
                 

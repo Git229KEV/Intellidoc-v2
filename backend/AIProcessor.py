@@ -151,19 +151,19 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
         Analyze the provided document and extract the following insurance fields with 100% precision.
         
         EXTRACT ALL OF THE FOLLOWING:
-        1. Policy Number
-        2. Insured Name
-        3. Vehicle Number
-        4. Policy Start Date
-        5. Policy End Date
-        6. OD (Own Damage Premium)
-        7. TP (Third Party Premium)
-        8. Net Premium
-        9. Gross Premium
+        1. Policy Number (Aliases: Policy No, Certificate No, Contract No)
+        2. Insured Name (Aliases: Policy Holder, Customer Name, Insured Person)
+        3. Vehicle Number (Aliases: Reg No, Registration Number, Vehicle No)
+        4. Policy Start Date (Aliases: From Date, Commencement Date, Start Date)
+        5. Policy End Date (Aliases: To Date, Expiry Date, Valid Upto)
+        6. OD Premium (Aliases: Own Damage, Basic OD)
+        7. TP Premium (Aliases: Third Party, Basic TP, Liability)
+        8. Net Premium (Aliases: Total Net, Net Amount)
+        9. Gross Premium (Aliases: Total Premium, Gross Amount, Amount Payable)
 
         Return result in STRICT JSON format.
         CRITICAL: If a field is not found, return an EMPTY LIST []. 
-        DO NOT use strings like "Not mentioned" or "N/A" in the lists.
+        DO NOT use placeholder strings.
         {
           "summary": "...",
           "entities": {
@@ -193,8 +193,9 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
             import fitz
             doc = fitz.open(stream=file_bytes, filetype="pdf")
             if len(doc) > 0:
-                print(f"DEBUG: Extracting PDF page 1 for vision analysis...")
-                pix = doc[0].get_pixmap(matrix=fitz.Matrix(2, 2))
+                print(f"DEBUG: Extracting PDF page 1 for high-res vision analysis...")
+                # Increase zoom to 3x for even better vision accuracy
+                pix = doc[0].get_pixmap(matrix=fitz.Matrix(3, 3))
                 pdf_vision_image_bytes = pix.tobytes("png")
             doc.close()
         except Exception as e:
@@ -294,7 +295,7 @@ def _try_gemini(file_bytes, file_type, extracted_text, prompt):
         # Minimum is 10s, using 15s to handle demand spikes
         print("DEBUG: Sending request to Gemini...")
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3.1-flash',
             contents=contents,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
