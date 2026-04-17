@@ -47,8 +47,9 @@ If PDF contains scanned pages, perform OCR on visible content before extracting 
 
     # Native PDF approach only: no PDF-to-image conversion
     providers = [
-        ("Gemini", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-2.5-flash')),
+        ("Gemini-Flash", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3-flash-preview')),
         ("Gemini-Pro", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3.1-pro-preview')),
+        ("Gemini-Lite", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3.1-flash-lite-preview')),
         ("Groq", _try_groq),
         ("OpenRouter", _try_openrouter),
         ("HuggingFace", _try_huggingface),
@@ -74,7 +75,7 @@ If PDF contains scanned pages, perform OCR on visible content before extracting 
     }
 
 
-def _try_gemini(file_bytes, file_type, extracted_text, prompt, model_name='gemini-2.5-flash'):
+def _try_gemini(file_bytes, file_type, extracted_text, prompt, model_name='gemini-3-flash-preview'):
     api_key = os.getenv('GEMINI_API_KEY')
     if not api_key:
         return None
