@@ -91,7 +91,7 @@ def _safe_entities_payload(raw) -> dict:
     if not isinstance(raw, dict):
         return {k: [] for k in keys}
     
-    placeholders = ["not explicitly mentioned", "n/a", "unknown", "none", "...", "null"]
+    placeholders = ["not explicitly mentioned", "not mentioned", "n/a", "unknown", "none", "...", "null", "not available"]
     out = {}
     for k in keys:
         v = raw.get(k)

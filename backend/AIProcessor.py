@@ -80,7 +80,7 @@ def is_sample_data(response_dict: dict, file_type: str) -> bool:
                 total_entities += len(values)
                 for v in values:
                     v_str = str(v).lower()
-                    if v_str and "not explicitly" not in v_str and "n/a" not in v_str and "unknown" not in v_str:
+                    if v_str and "not explicitly" not in v_str and "not mentioned" not in v_str and "n/a" not in v_str and "unknown" not in v_str and "not available" not in v_str:
                         valid_entities += 1
         
         if valid_entities == 0:
@@ -124,19 +124,22 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
         - Do NOT hallucinate or invent data
         - Only extract what is VISUALLY present in the image
         
-        Return ONLY valid JSON in this exact format:
+        Return ONLY valid JSON in this exact format. 
+        CRITICAL: If a field is not found in the image, return an EMPTY LIST []. 
+        DO NOT use strings like "not mentioned", "not explicitly mentioned", "n/a", "unknown", "none", "...", "null", or "not available" in the lists.
+        
         {
           "summary": "Brief description of the insurance document",
           "entities": {
-            "policy_number": ["..."],
-            "insured_name": ["..."],
-            "vehicle_number": ["..."],
-            "policy_start_date": ["..."],
-            "policy_end_date": ["..."],
-            "od_premium": ["..."],
-            "tp_premium": ["..."],
-            "net_premium": ["..."],
-            "gross_premium": ["..."]
+            "policy_number": [],
+            "insured_name": [],
+            "vehicle_number": [],
+            "policy_start_date": [],
+            "policy_end_date": [],
+            "od_premium": [],
+            "tp_premium": [],
+            "net_premium": [],
+            "gross_premium": []
           },
           "sentiment": "Neutral",
           "confidence_score": 0.95
@@ -158,7 +161,9 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
         8. Net Premium
         9. Gross Premium
 
-        Return result in STRICT JSON format:
+        Return result in STRICT JSON format.
+        CRITICAL: If a field is not found, return an EMPTY LIST []. 
+        DO NOT use strings like "Not mentioned" or "N/A" in the lists.
         {
           "summary": "...",
           "entities": {
