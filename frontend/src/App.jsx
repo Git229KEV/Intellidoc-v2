@@ -183,55 +183,29 @@ function App() {
       doc.text(`File: ${originalFileName}  |  Generated: ${new Date().toLocaleString()}`, margin, y);
       y += 12;
 
-      // Summary
-      if (analysisResult.summary) {
-        doc.setTextColor(30, 30, 30);
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Summary', margin, y); y += 7;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        const summaryLines = doc.splitTextToSize(analysisResult.summary, maxW);
-        summaryLines.forEach(line => {
-          if (y > 270) { doc.addPage(); y = 20; }
-          doc.text(line, margin, y); y += 6;
-        });
-        y += 4;
-      }
-
-      // Entities
-      const entities = analysisResult.entities || {};
-      const entityGroups = [
-        { label: 'Names', items: entities.names },
-        { label: 'Organizations', items: entities.organizations },
-        { label: 'Dates', items: entities.dates },
-        { label: 'Amounts', items: entities.amounts },
+      // Insurance Details
+      const details = [
+        { label: 'Policy Number', value: analysisResult.policy_number },
+        { label: 'Insured Name', value: analysisResult.name },
+        { label: 'Vehicle Number', value: analysisResult.vehicle_no },
+        { label: 'Policy Start Date', value: analysisResult.policy_start_date },
+        { label: 'Policy End Date', value: analysisResult.policy_end_date },
+        { label: 'OD Premium', value: analysisResult.od },
+        { label: 'TP Premium', value: analysisResult.tp },
+        { label: 'Net Premium', value: analysisResult.net_premium },
+        { label: 'Gross Premium', value: analysisResult.gross_premium },
       ];
-      entityGroups.forEach(({ label, items }) => {
-        if (items && items.length > 0) {
+
+      details.forEach(({ label, value }) => {
+        if (value) {
           if (y > 270) { doc.addPage(); y = 20; }
           doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
-          doc.text(label, margin, y); y += 7;
+          doc.text(label, margin, y);
           doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-          const txt = items.join(', ');
-          const lines = doc.splitTextToSize(txt, maxW);
-          lines.forEach(line => { if (y > 270) { doc.addPage(); y = 20; } doc.text(line, margin, y); y += 6; });
-          y += 4;
+          doc.text(String(value), margin + 50, y);
+          y += 10;
         }
       });
-
-      // Key facts
-      if (analysisResult.key_facts && analysisResult.key_facts.length > 0) {
-        if (y > 270) { doc.addPage(); y = 20; }
-        doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
-        doc.text('Key Facts', margin, y); y += 7;
-        doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-        analysisResult.key_facts.forEach(fact => {
-          if (y > 270) { doc.addPage(); y = 20; }
-          const lines = doc.splitTextToSize(`• ${fact}`, maxW);
-          lines.forEach(line => { doc.text(line, margin, y); y += 6; });
-        });
-      }
 
       const pdfBlob = doc.output('blob');
       const timestamp = new Date().getTime();
@@ -856,10 +830,10 @@ function App() {
                     <div className="scan-line"></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
-                        <h4>Core Synthesis</h4>
+                        <h4>Policy Synthesis</h4>
                         <div className="confidence-badge" style={{ borderColor: result.status === 'success' ? 'var(--accent-neon)' : 'var(--danger)' }}>
-                          <span>{result.status === 'success' ? 'Neural Confidence:' : 'Protocol Status:'}</span>
-                          <span>{result.status === 'success' ? `${(result.confidence_score * 100).toFixed(1)}%` : result.status.toUpperCase()}</span>
+                          <span>{result.status === 'success' ? 'Protocol Status:' : 'Alert Status:'}</span>
+                          <span>{result.status === 'success' ? 'READY' : result.status.toUpperCase()}</span>
                         </div>
                       </div>
                       <div className="download-actions">
@@ -880,66 +854,68 @@ function App() {
                       </div>
                     )}
                     <div className="summary-large" style={{ marginTop: '2rem' }}>
-                      <p>{result.summary}</p>
+                      <p>Insurance policy data successfully extracted and structured for downstream processing.</p>
                     </div>
                   </div>
 
                   <div className="floating-layer" id="printable-area">
-                    <div className="nebula-card span-small" style={{ borderColor: result.sentiment?.toLowerCase() === 'positive' ? 'var(--accent-neon)' : 'var(--accent-ghost)' }}>
-                      <h4>Sentiment Bias</h4>
-                      <div style={{ fontSize: '4rem', fontWeight: 800, color: '#fff', textTransform: 'uppercase', letterSpacing: '-0.1em' }}>
-                        {result.sentiment}
+                    <div className="nebula-card span-small">
+                      <h4>Vehicle Identity</h4>
+                      <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#fff', textTransform: 'uppercase', letterSpacing: '-0.05em', wordBreak: 'break-all' }}>
+                        {result.vehicle_no || "N/A"}
                       </div>
                     </div>
                     
                     <div className="nebula-card span-large">
-                      <h4>Organizations identified</h4>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
-                        {result.entities?.organizations?.length > 0 
-                          ? result.entities.organizations.map((org, i) => <span key={i} className="prism-chip">{org}</span>)
-                          : <span style={{ opacity: 0.3 }}>Empty set</span>}
+                      <h4>Insured Party & Policy</h4>
+                      <div style={{ marginBottom: '1.5rem' }}>
+                        <h4 style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>Insured Name</h4>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 600 }}>{result.name || "N/A"}</div>
                       </div>
-                      <div style={{ marginTop: '2rem', display: 'flex', gap: '2rem' }}>
-                        {result.entities?.amounts?.length > 0 && (
-                          <div>
-                            <h4 style={{ fontSize: '0.6rem' }}>Monetary Factors</h4>
-                            {result.entities.amounts.map((a, i) => <div key={i} className="highlight-amount" style={{ marginBottom: '0.4rem', display: 'inline-block', marginRight: '0.5rem' }}>{a}</div>)}
+                      <div style={{ display: 'flex', gap: '2rem' }}>
+                        <div>
+                          <h4 style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>Policy Number</h4>
+                          <div className="prism-chip" style={{ fontSize: '1.1rem' }}>{result.policy_number || "N/A"}</div>
+                        </div>
+                        <div>
+                          <h4 style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>Validity Period</h4>
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <span className="highlight-date">{result.policy_start_date}</span>
+                            <span style={{ opacity: 0.3 }}>→</span>
+                            <span className="highlight-date">{result.policy_end_date}</span>
                           </div>
-                        )}
-                        {result.entities?.dates?.length > 0 && (
-                          <div>
-                            <h4 style={{ fontSize: '0.6rem' }}>Temporal Anchors</h4>
-                            {result.entities.dates.map((d, i) => <div key={i} className="highlight-date" style={{ marginBottom: '0.4rem', display: 'inline-block', marginRight: '0.5rem' }}>{d}</div>)}
-                          </div>
-                        )}
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   <div className="floating-layer">
                     <div className="nebula-card span-large">
-                      <h4>Unique Factor Extraction</h4>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
-                        {result.entities?.unique_identifiers?.length > 0 
-                          ? result.entities.unique_identifiers.map((uid, i) => <span key={i} className="prism-chip" style={{ borderColor: 'var(--accent-neon)', background: 'rgba(206, 255, 0, 0.1)' }}>{uid}</span>)
-                          : <span style={{ opacity: 0.3 }}>No unique IDs found</span>}
-                      </div>
-                      <div style={{ marginTop: '2rem', borderTop: '1px solid var(--glass-border)', paddingTop: '2rem', display: 'flex', gap: '3rem' }}>
+                      <h4>Premium Breakdown</h4>
+                      <div className="value-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '1.5rem' }}>
                         <div>
-                          <h4 style={{ fontSize: '0.6rem' }}>Locations identified</h4>
-                          {result.entities?.locations?.map((l, i) => <div key={i} style={{ marginBottom: '0.4rem' }}>{l}</div>)}
+                          <h4 style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>OD Premium</h4>
+                          <div className="highlight-amount" style={{ fontSize: '1.2rem' }}>{result.od || "0.00"}</div>
                         </div>
                         <div>
-                          <h4 style={{ fontSize: '0.6rem' }}>Contact mapping</h4>
-                          {result.entities?.contact_details?.map((c, i) => <div key={i} style={{ marginBottom: '0.4rem' }}>{c}</div>)}
+                          <h4 style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>TP Premium</h4>
+                          <div className="highlight-amount" style={{ fontSize: '1.2rem' }}>{result.tp || "0.00"}</div>
+                        </div>
+                        <div>
+                          <h4 style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>Net Premium</h4>
+                          <div className="highlight-amount" style={{ fontSize: '1.2rem', color: 'var(--accent-neon)' }}>{result.net_premium || "0.00"}</div>
+                        </div>
+                        <div>
+                          <h4 style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>Gross Premium</h4>
+                          <div className="highlight-amount" style={{ fontSize: '1.2rem', color: 'var(--accent-neon)', borderBottom: '2px solid var(--accent-neon)' }}>{result.gross_premium || "0.00"}</div>
                         </div>
                       </div>
                     </div>
                     
                     <div className="nebula-card span-small">
-                      <h4>Humans detected</h4>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {result.entities?.names?.map((n, i) => <div key={i} style={{ fontWeight: 500 }}>{n}</div>)}
+                      <h4>Total Premium</h4>
+                      <div style={{ fontSize: '3rem', fontWeight: 800, color: 'var(--accent-neon)', textAlign: 'center' }}>
+                         {result.premium || "N/A"}
                       </div>
                     </div>
                   </div>
@@ -985,15 +961,13 @@ function App() {
                     <div className="code-content" style={{ color: 'var(--accent-neon)' }}>
                       {`{
   "status": "success",
-  "fileName": "sample1.pdf",
-  "summary": "This document is an invoice issued by ABC Pvt Ltd to Ravi Kumar on 10 March 2026 for an amount of ₹10,000.",
-  "entities": {
-    "names": ["Ravi Kumar"],
-    "dates": ["10 March 2026"],
-    "organizations": ["ABC Pvt Ltd"],
-    "amounts": ["₹10,000"]
-  },
-  "sentiment": "Neutral"
+  "policy_number": "POL-123456789",
+  "name": "John Doe",
+  "vehicle_no": "TN-01-AB-1234",
+  "premium": "12,500.00",
+  "policy_start_date": "2026-01-01",
+  "policy_end_date": "2026-12-31",
+  "gross_premium": "12,500.00"
 }`}
                     </div>
                   </div>
