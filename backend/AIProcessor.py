@@ -175,19 +175,29 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
         }
         """
 
-    # Determine provider priority based on file type
-    # For images, Groq Vision is currently more stable/accurate for extracting text
+    is_image = file_type.lower().strip() in ['png', 'webp', 'jpg', 'jpeg', 'image']
+    is_pdf = file_type.lower().strip() == 'pdf'
     
+    # For scanned PDFs, prepare the first page as an image for vision-capable models (Groq)
+    first_page_image_bytes = None
+    if is_pdf and not extracted_text.strip():
+        try:
+            import fitz
+            doc = fitz.open(stream=file_bytes, filetype="pdf")
+            if len(doc) > 0:
+                print(f"DEBUG: PDF has no text, extracting first page for vision analysis...")
+                pix = doc[0].get_pixmap(matrix=fitz.Matrix(2, 2))
+                first_page_image_bytes = pix.tobytes("png")
+            doc.close()
+        except Exception as e:
+            print(f"DEBUG: Failed to extract first page image from PDF: {e}")
+
     # Determine provider priority based on file type
-    # For images, ONLY use vision-capable providers (Groq and Gemini)
-    # OpenRouter included as fallback for Gemini high-load periods (503 errors)
-    # OpenRouter and HuggingFace cannot process images properly without text
-    
-    if is_image:
+    if is_image or first_page_image_bytes:
         providers = [
             ("Groq", _try_groq),
             ("Gemini", _try_gemini),
-            ("OpenRouter", _try_openrouter),  # Fallback if Gemini has 503 errors
+            ("OpenRouter", _try_openrouter),
         ]
     else:
         providers = [
@@ -201,7 +211,11 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
     for name, func in providers:
         try:
             print(f"DEBUG: Attempting analysis with {name}...")
-            raw_result = func(file_bytes, file_type, extracted_text, prompt)
+            # Use the extracted image for Groq/Gemini if it's a scanned PDF
+            target_bytes = first_page_image_bytes if (first_page_image_bytes and name in ["Groq", "Gemini"]) else file_bytes
+            target_type = "image/png" if (first_page_image_bytes and name in ["Groq", "Gemini"]) else file_type
+            
+            raw_result = func(target_bytes, target_type, extracted_text, prompt)
             
             if raw_result:
                 # Some funcs return strings, some return dicts. Normalize to strings for cleaning.
@@ -248,7 +262,7 @@ def _try_gemini(file_bytes, file_type, extracted_text, prompt):
     file_type = file_type.lower().strip()
     
     contents = []
-    if file_type in ['png', 'webp', 'jpg', 'jpeg', 'image']:
+    if file_type in ['png', 'webp', 'jpg', 'jpeg', 'image', 'image/png', 'image/jpeg', 'image/webp']:
         print(f"DEBUG: Gemini processing image - file_type: {file_type}, size: {len(file_bytes)} bytes")
         # Ensure common image formats are consistent
         mime = "image/jpeg"
@@ -300,7 +314,7 @@ def _try_groq(file_bytes, file_type, extracted_text, prompt):
 
     messages = []
     # Vision Support for Groq
-    if file_type in ['png', 'webp', 'jpg', 'jpeg', 'image']:
+    if file_type in ['png', 'webp', 'jpg', 'jpeg', 'image', 'image/png', 'image/jpeg', 'image/webp']:
         print(f"DEBUG: Groq processing image - file_type: {file_type}, size: {len(file_bytes)} bytes")
         base64_image = base64.b64encode(file_bytes).decode('utf-8')
         print(f"DEBUG: Image encoded to base64, length: {len(base64_image)}")

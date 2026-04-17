@@ -60,22 +60,38 @@ def parse_document(file_base64: str, file_type: str) -> str:
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
     """
-    Hybrid PDF extraction using PyMuPDF and pdfplumber.
+    Hybrid PDF extraction using PyMuPDF and Tesseract OCR for scanned content.
     """
     text = ""
     try:
         # First layer: PyMuPDF for fast extraction
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         for page in doc:
-            text += page.get_text()
+            page_text = page.get_text()
+            text += page_text
         
-        # If text is minimal, try OCR fallback for scanned PDFs
-        if len(text.strip()) < 50:
-            print("DEBUG: PDF text minimal, attempting hybrid OCR...")
-            with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-                for page in pdf.pages:
-                    # Low-level OCR integration could go here
-                    pass
+        # If text is minimal (< 100 chars), it's likely a scanned PDF or contains mostly images
+        if len(text.strip()) < 100:
+            print(f"DEBUG: PDF text minimal ({len(text.strip())} chars), attempting OCR...")
+            ocr_text = ""
+            # Only OCR first 5 pages to avoid timeouts/heavy load
+            for i in range(min(len(doc), 5)):
+                page = doc[i]
+                # Render page to an image (pixmap)
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) # 2x zoom for better OCR
+                img_data = pix.tobytes("png")
+                img = Image.open(io.BytesIO(img_data))
+                
+                if tesseract_path:
+                    page_ocr = pytesseract.image_to_string(img)
+                    ocr_text += f"\n[Page {i+1} OCR]:\n{page_ocr}"
+                else:
+                    print(f"DEBUG: No Tesseract for Page {i+1} OCR")
+            
+            if ocr_text:
+                text = ocr_text
+                
+        doc.close()
     except Exception as e:
         print(f"DEBUG: PDF extraction error: {e}")
     return text
