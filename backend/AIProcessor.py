@@ -203,19 +203,19 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
 
     # Determine provider priority based on file type
     # For images or scanned PDFs, use vision-capable providers first
+    # Determine provider priority based on file type
+    # Using gemini-2.5-flash as the primary model as per stable deployment 3f141b3
     if is_image or pdf_vision_image_bytes:
         providers = [
-            ("Gemini-Pro", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3.1-pro-preview')),
-            ("Gemini-Flash", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3-flash-preview')),
-            ("Gemini-Flash-Lite", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3.1-flash-lite-preview')),
+            ("Gemini-2.5-Flash", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-2.5-flash')),
+            ("Gemini-3.1-Pro", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3.1-pro-preview')),
             ("Groq", _try_groq),
             ("OpenRouter", _try_openrouter),
         ]
     else:
         providers = [
-            ("Gemini-Pro", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3.1-pro-preview')),
-            ("Gemini-Flash", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3-flash-preview')),
-            ("Gemini-Flash-Lite", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3.1-flash-lite-preview')),
+            ("Gemini-2.5-Flash", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-2.5-flash')),
+            ("Gemini-3.1-Pro", lambda b, t, e, p: _try_gemini(b, t, e, p, 'gemini-3.1-pro-preview')),
             ("Groq", _try_groq),
             ("OpenRouter", _try_openrouter),
             ("HuggingFace", _try_huggingface)
@@ -271,7 +271,7 @@ def generate_analysis(file_bytes: bytes, file_type: str, extracted_text: str = "
         "error_details": "; ".join(errors)
     }
 
-def _try_gemini(file_bytes, file_type, extracted_text, prompt, model_name='gemini-3.1-pro-preview'):
+def _try_gemini(file_bytes, file_type, extracted_text, prompt, model_name='gemini-2.5-flash'):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         print("DEBUG: GEMINI_API_KEY not set")
@@ -281,23 +281,22 @@ def _try_gemini(file_bytes, file_type, extracted_text, prompt, model_name='gemin
     file_type = file_type.lower().strip()
     
     contents = []
-    if file_type in ['png', 'webp', 'jpg', 'jpeg', 'image', 'image/png', 'image/jpeg', 'image/webp']:
+    if any(t in file_type for t in ['png', 'webp', 'jpg', 'jpeg', 'image']):
         print(f"DEBUG: Gemini ({model_name}) processing image - file_type: {file_type}, size: {len(file_bytes)} bytes")
         # Ensure common image formats are consistent
         mime = "image/jpeg"
-        if file_type == 'png' or 'png' in file_type: mime = "image/png"
-        elif file_type == 'webp' or 'webp' in file_type: mime = "image/webp"
+        if 'png' in file_type: mime = "image/png"
+        elif 'webp' in file_type: mime = "image/webp"
         contents = [types.Part.from_bytes(data=file_bytes, mime_type=mime), prompt]
         print(f"DEBUG: Gemini image prepared with mime: {mime}")
-    elif file_type == 'pdf':
+    elif 'pdf' in file_type:
         print(f"DEBUG: Gemini ({model_name}) processing PDF - size: {len(file_bytes)} bytes")
         contents = [types.Part.from_bytes(data=file_bytes, mime_type="application/pdf"), prompt]
     else:
         contents = [f"Document Text:\n\n{extracted_text}\n\n{prompt}"]
     
     try:
-        # Increased timeout for Gemini (experiencing high load periods, 503 errors)
-        # Minimum is 10s, using 15s to handle demand spikes
+        # Reverting to the exact configuration from stable deployment 3f141b3
         print(f"DEBUG: Sending request to Gemini ({model_name})...")
         response = client.models.generate_content(
             model=model_name,
